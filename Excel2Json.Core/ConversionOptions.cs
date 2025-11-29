@@ -14,5 +14,4 @@ public sealed record ConversionOptions(
     bool CellJson = false,
     bool AllString = false,
     bool SingleLineArray = false,
-    int CompressLevel = 0,
     string? SheetName = null);

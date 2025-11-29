@@ -28,13 +28,14 @@
             <Border Background="#2F3035" CornerRadius="10" Padding="12">
               <StackPanel Spacing="10">
                 <TextBlock Text="基础设置" Foreground="#E9EDF4" FontWeight="SemiBold" FontSize="16"/>
-                <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="150,*,Auto">
-                  <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                    <TextBlock Foreground="#E9EDF4" Text="Excel/CSV 文件"/>
-                    <Button Content="?" Width="22" Height="22" Background="#2F3035" Foreground="#9DA5B4" BorderBrush="#3A3B40" ToolTip.Tip="选择或拖拽 .xlsx/.xls/.csv，左侧为输入，右侧为输出预览。"/>
-                  </StackPanel>
-                  <TextBox x:Name="ExcelPathBox" Grid.Row="0" Grid.Column="1" Watermark="选择 .xlsx/.xls/.csv" Background="#1F2024" Foreground="#E9EDF4" BorderBrush="#3A3B40"/>
-                  <Button x:Name="BrowseExcelButton" Grid.Row="0" Grid.Column="2" Content="浏览" ToolTip.Tip="从文件系统选取 Excel/CSV 文件"/>
+              <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="150,*,Auto,Auto">
+                <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                  <TextBlock Foreground="#E9EDF4" Text="Excel/CSV 文件"/>
+                  <Button Content="?" Width="22" Height="22" Background="#2F3035" Foreground="#9DA5B4" BorderBrush="#3A3B40" ToolTip.Tip="选择或拖拽 .xlsx/.xls/.csv，左侧为输入，右侧为输出预览。"/>
+                </StackPanel>
+                <TextBox x:Name="ExcelPathBox" Grid.Row="0" Grid.Column="1" Watermark="选择 .xlsx/.xls/.csv" Background="#1F2024" Foreground="#E9EDF4" BorderBrush="#3A3B40"/>
+                <Button x:Name="BrowseExcelButton" Grid.Row="0" Grid.Column="2" Content="浏览" ToolTip.Tip="从文件系统选取 Excel/CSV 文件"/>
+                <Button x:Name="ClearSelectionButton" Grid.Row="0" Grid.Column="3" Content="清除" ToolTip.Tip="清空当前选择与状态" Background="#2F3035" Foreground="#E9EDF4" BorderBrush="#3A3B40"/>
 
                   <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                     <TextBlock Foreground="#E9EDF4" Text="输出 JSON"/>
@@ -49,7 +50,7 @@
             <Border Background="#2F3035" CornerRadius="10" Padding="12">
               <StackPanel Spacing="10">
               <TextBlock Text="格式设置" Foreground="#E9EDF4" FontWeight="SemiBold" FontSize="16"/>
-              <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="150,*">
+              <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="150,*">
                 <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                   <TextBlock Foreground="#E9EDF4" Text="表头行数"/>
                   <Button Content="?" Width="22" Height="22" Background="#2F3035" Foreground="#9DA5B4" BorderBrush="#3A3B40" ToolTip.Tip="列名所在行号（从 1 开始），默认 3；数据从该行之后读取。"/>
@@ -87,19 +88,10 @@
                 </ComboBox>
 
                 <StackPanel Grid.Row="3" Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                  <TextBlock Foreground="#E9EDF4" Text="压缩为几层"/>
-                  <Button Content="?" Width="22" Height="22" Background="#2F3035" Foreground="#9DA5B4" BorderBrush="#3A3B40" ToolTip.Tip="选择保留的层级；1 表示整体一行，2 表示保留根节点并将其子节点压缩为一行，0 表示不压缩。"/>
-                </StackPanel>
-                <ComboBox x:Name="CompressLevelBox" Grid.Row="3" Grid.Column="1" Background="#1F2024" Foreground="#E9EDF4" BorderBrush="#3A3B40" SelectedIndex="0">
-                  <ComboBoxItem Content="不压缩" Tag="0"/>
-                  <ComboBoxItem Content="压缩为 1 层" Tag="1"/>
-                </ComboBox>
-
-                <StackPanel Grid.Row="4" Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                   <TextBlock Foreground="#E9EDF4" Text="目标 Sheet（自动检测）"/>
                   <Button Content="?" Width="22" Height="22" Background="#2F3035" Foreground="#9DA5B4" BorderBrush="#3A3B40" ToolTip.Tip="自动列出工作簿中的 Sheet；选择后仅导出该 Sheet，默认导出全部（CSV 仅一个 Sheet）。"/>
                 </StackPanel>
-                <ComboBox x:Name="SheetNameBox" Grid.Row="4" Grid.Column="1" Background="#1F2024" Foreground="#E9EDF4" BorderBrush="#3A3B40" SelectedIndex="0">
+                <ComboBox x:Name="SheetNameBox" Grid.Row="3" Grid.Column="1" Background="#1F2024" Foreground="#E9EDF4" BorderBrush="#3A3B40" SelectedIndex="0">
                   <ComboBoxItem Content="全部 Sheet（默认）"/>
                 </ComboBox>
               </Grid>
@@ -122,7 +114,7 @@
                     <CheckBox x:Name="ForceSheetBox" Content="保留 Sheet 包装" Foreground="#E9EDF4" ToolTip.Tip="即使只有一个 Sheet 也保留顶层 Sheet 名。" Margin="0,0,12,8" />
                     <CheckBox x:Name="CellJsonBox" Content="识别 JSON 值" Foreground="#E9EDF4" ToolTip.Tip="若单元格内是 JSON 文本，则将该值解析为对象/数组。" Margin="0,0,12,8" />
                     <CheckBox x:Name="AllStringBox" Content="值转字符串" Foreground="#E9EDF4" ToolTip.Tip="将所有输出值转为字符串（键名不受影响），便于弱类型消费。" Margin="0,0,12,8" />
-                    <CheckBox x:Name="SingleLineArrayBox" Content="数组单行输出" Foreground="#E9EDF4" ToolTip.Tip="将 JSON 数组压缩为单行展示，便于与 Excel 行对应查看。" Margin="0,0,12,8" />
+                    <CheckBox x:Name="SingleLineArrayBox" Content="数组按行输出" Foreground="#E9EDF4" ToolTip.Tip="当输出 JSON 为数组时，强制每个元素单独一行展示。" Margin="0,0,12,8" />
                   </WrapPanel>
                 </Grid>
               </StackPanel>

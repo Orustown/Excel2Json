@@ -26,12 +26,12 @@ public partial class MainWindow : Window
     private Button _convertButton = null!;
     private Button _browseExcelButton = null!;
     private Button _browseJsonButton = null!;
+    private Button _clearSelectionButton = null!;
     private TextBox _excelPathBox = null!;
     private TextBox _jsonPathBox = null!;
     private NumericUpDown _headerRowsBox = null!;
     private ComboBox _encodingBox = null!;
     private ComboBox _dateFormatBox = null!;
-    private ComboBox _compressLevelBox = null!;
     private TextBox _excludePrefixBox = null!;
     private ComboBox _sheetNameBox = null!;
     private CheckBox _lowercaseBox = null!;
@@ -45,7 +45,6 @@ public partial class MainWindow : Window
     private TextBlock _previewStatusText = null!;
     private TextBlock _previewBlock = null!;
     private CancellationTokenSource? _previewCts;
-    private bool _updatingCompressLevels;
     private const string DefaultSheetPlaceholder = "全部 Sheet（默认）";
 
     public MainWindow()
@@ -58,6 +57,7 @@ public partial class MainWindow : Window
         _convertButton.Click += OnConvertClicked;
         _browseExcelButton.Click += OnBrowseExcel;
         _browseJsonButton.Click += OnBrowseJson;
+        _clearSelectionButton.Click += OnClearSelection;
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
         AddHandler(DragDrop.DropEvent, OnDrop);
 
@@ -71,12 +71,12 @@ public partial class MainWindow : Window
         _convertButton = this.FindControl<Button>("ConvertButton") ?? throw new InvalidOperationException("ConvertButton not found");
         _browseExcelButton = this.FindControl<Button>("BrowseExcelButton") ?? throw new InvalidOperationException("BrowseExcelButton not found");
         _browseJsonButton = this.FindControl<Button>("BrowseJsonButton") ?? throw new InvalidOperationException("BrowseJsonButton not found");
+        _clearSelectionButton = this.FindControl<Button>("ClearSelectionButton") ?? throw new InvalidOperationException("ClearSelectionButton not found");
         _excelPathBox = this.FindControl<TextBox>("ExcelPathBox") ?? throw new InvalidOperationException("ExcelPathBox not found");
         _jsonPathBox = this.FindControl<TextBox>("JsonPathBox") ?? throw new InvalidOperationException("JsonPathBox not found");
         _headerRowsBox = this.FindControl<NumericUpDown>("HeaderRowsBox") ?? throw new InvalidOperationException("HeaderRowsBox not found");
         _encodingBox = this.FindControl<ComboBox>("EncodingBox") ?? throw new InvalidOperationException("EncodingBox not found");
         _dateFormatBox = this.FindControl<ComboBox>("DateFormatBox") ?? throw new InvalidOperationException("DateFormatBox not found");
-        _compressLevelBox = this.FindControl<ComboBox>("CompressLevelBox") ?? throw new InvalidOperationException("CompressLevelBox not found");
         _excludePrefixBox = this.FindControl<TextBox>("ExcludePrefixBox") ?? throw new InvalidOperationException("ExcludePrefixBox not found");
         _sheetNameBox = this.FindControl<ComboBox>("SheetNameBox") ?? throw new InvalidOperationException("SheetNameBox not found");
         _lowercaseBox = this.FindControl<CheckBox>("LowercaseBox") ?? throw new InvalidOperationException("LowercaseBox not found");
@@ -107,7 +107,6 @@ public partial class MainWindow : Window
         ListenSpin(_headerRowsBox);
         ListenCombo(_encodingBox);
         ListenCombo(_dateFormatBox);
-        ListenCombo(_compressLevelBox);
         ListenBox(_excludePrefixBox);
         ListenCombo(_sheetNameBox);
         ListenCheck(_lowercaseBox);
@@ -120,9 +119,6 @@ public partial class MainWindow : Window
 
     private void OnOptionChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
-        if (_updatingCompressLevels && ReferenceEquals(sender, _compressLevelBox))
-            return;
-
         if (e.Property == TextBox.TextProperty
             || e.Property == ComboBox.SelectedItemProperty
             || e.Property == NumericUpDown.ValueProperty
@@ -180,6 +176,18 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnClearSelection(object? sender, RoutedEventArgs e)
+    {
+        _excelPathBox.Text = string.Empty;
+        _jsonPathBox.Text = string.Empty;
+        ResetComboItems(_sheetNameBox);
+        _sheetNameBox.ItemsSource = new List<string> { DefaultSheetPlaceholder };
+        _sheetNameBox.SelectedIndex = 0;
+        _logBox.Text = string.Empty;
+        SetPreviewPlain("// 请选择 Excel/CSV 文件以生成预览。");
+        _previewStatusText.Text = "等待选择文件...";
+    }
+
     private async void OnConvertClicked(object? sender, RoutedEventArgs e)
     {
         try
@@ -190,8 +198,8 @@ public partial class MainWindow : Window
 
             var options = BuildOptions();
             var preview = await _converter.PreviewAsync(options);
-            var effectiveCompress = NormalizeCompressLevel(options.CompressLevel, preview.MaxDepth, options.SingleLineArray);
-            var outputJson = BuildFormattedJson(preview.Json, effectiveCompress, options.SingleLineArray, options.DateFormat);
+            var rootArrayPerLine = options.SingleLineArray && IsRootArray(preview.Json);
+            var outputJson = BuildFormattedJson(preview.Json, rootArrayPerLine, options.DateFormat);
 
             var encoding = Encoding.GetEncoding(options.EncodingName);
             Directory.CreateDirectory(Path.GetDirectoryName(options.OutputPath) ?? ".");
@@ -268,7 +276,6 @@ public partial class MainWindow : Window
             CellJson: _cellJsonBox.IsChecked ?? false,
             AllString: _allStringBox.IsChecked ?? false,
             SingleLineArray: _singleLineArrayBox.IsChecked ?? false,
-            CompressLevel: GetCompressLevel(),
             SheetName: GetSheetSelection()
         );
     }
@@ -308,17 +315,16 @@ public partial class MainWindow : Window
             }
 
             var options = BuildOptions(requireOutputPath: false);
-            var preview = await _converter.PreviewAsync(options, token);
+        var preview = await _converter.PreviewAsync(options, token);
 
-            token.ThrowIfCancellationRequested();
-            await Dispatcher.UIThread.InvokeAsync(() =>
-            {
-                UpdateCompressLevels(preview.MaxDepth);
-                var effectiveCompress = NormalizeCompressLevel(options.CompressLevel, preview.MaxDepth, options.SingleLineArray);
-                RenderHighlightedJson(preview.Json, effectiveCompress, options.SingleLineArray);
-                _previewStatusText.Text = $"预览就绪：Sheet {preview.Sheets}，行 {preview.Rows}";
-            }, DispatcherPriority.Background);
-        }
+        token.ThrowIfCancellationRequested();
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            var rootArrayPerLine = options.SingleLineArray && IsRootArray(preview.Json);
+            RenderHighlightedJson(preview.Json, rootArrayPerLine);
+            _previewStatusText.Text = $"预览就绪：Sheet {preview.Sheets}，行 {preview.Rows}";
+        }, DispatcherPriority.Background);
+    }
         catch (OperationCanceledException)
         {
             // ignore
@@ -374,43 +380,36 @@ public partial class MainWindow : Window
         return value;
     }
 
-    private int GetCompressLevel()
-    {
-        if (_compressLevelBox.SelectedItem is ComboBoxItem item)
-        {
-            if (item.Tag is int direct)
-                return direct;
-            if (item.Tag is string tagText && int.TryParse(tagText, out var parsed))
-                return parsed;
-        }
-
-        var value = GetComboValue(_compressLevelBox, "0");
-        return int.TryParse(new string(value.Where(char.IsDigit).ToArray()), out var level) ? level : 0;
-    }
-
-    private static int NormalizeCompressLevel(int level, int maxDepth, bool singleLineArray)
-    {
-        if (level <= 0)
-            return int.MaxValue;
-        if (level == 1 || singleLineArray)
-            return 1;
-        return Math.Min(level, Math.Max(1, maxDepth));
-    }
-
     private static void ResetComboItems(ComboBox combo)
     {
         combo.ItemsSource = null;
         combo.Items?.Clear();
     }
 
-    private static string BuildFormattedJson(string json, int compressLevel, bool singleLineArray, string dateFormat)
+    private static bool IsRootArray(string json)
     {
         try
         {
             var token = JToken.Parse(json);
-            var builder = new StringBuilder();
-            WriteTokenToString(token, builder, depth: 1, compressLevel, singleLineArray, forceInline: compressLevel == 1, dateFormat);
-            return builder.ToString();
+            return token is JArray;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static string BuildFormattedJson(string json, bool rootArrayPerLine, string dateFormat)
+    {
+        try
+        {
+            var token = JToken.Parse(json);
+            using var sw = new StringWriter();
+            using var writer = new JsonTextWriter(sw) { Formatting = Formatting.None };
+            var serializer = JsonSerializer.Create(new JsonSerializerSettings { DateFormatString = dateFormat });
+            WriteTokenStream(token, writer, serializer, depth: 1, rootArrayPerLine, isRoot: true);
+            writer.Flush();
+            return sw.ToString();
         }
         catch
         {
@@ -418,107 +417,81 @@ public partial class MainWindow : Window
         }
     }
 
-    private static void WriteTokenToString(JToken token, StringBuilder sb, int depth, int compressLevel, bool singleLineArray, bool forceInline, string dateFormat)
+    private static void WriteTokenStream(JToken token, JsonTextWriter writer, JsonSerializer serializer, int depth, bool rootArrayPerLine, bool isRoot = false)
     {
         switch (token.Type)
         {
             case JTokenType.Object:
-                WriteObjectToString((JObject)token, sb, depth, compressLevel, singleLineArray, forceInline, dateFormat);
+                WriteObjectStream((JObject)token, writer, serializer, depth, rootArrayPerLine, isRoot);
                 break;
             case JTokenType.Array:
-                WriteArrayToString((JArray)token, sb, depth, compressLevel, singleLineArray, forceInline, dateFormat);
+                WriteArrayStream((JArray)token, writer, serializer, depth, rootArrayPerLine, isRoot);
                 break;
             default:
-                var value = token is JValue jValue ? jValue.Value : token.ToString();
-                sb.Append(JsonConvert.SerializeObject(value, new JsonSerializerSettings
-                {
-                    DateFormatString = dateFormat
-                }));
+                serializer.Serialize(writer, token is JValue jValue ? jValue.Value : token.ToString());
                 break;
         }
     }
 
-    private static void WriteObjectToString(JObject obj, StringBuilder sb, int depth, int compressLevel, bool singleLineArray, bool forceInline, string dateFormat)
+    private static void WriteObjectStream(JObject obj, JsonTextWriter writer, JsonSerializer serializer, int depth, bool rootArrayPerLine, bool isRoot)
     {
-        var inline = forceInline || depth >= compressLevel;
-        sb.Append('{');
+        writer.WriteStartObject();
         var properties = obj.Properties().ToList();
         if (properties.Count == 0)
         {
-            sb.Append('}');
+            writer.WriteEndObject();
             return;
         }
 
-        if (inline)
-        {
-            for (var i = 0; i < properties.Count; i++)
-            {
-                var prop = properties[i];
-                sb.Append(JsonConvert.ToString(prop.Name));
-                sb.Append(": ");
-                WriteTokenToString(prop.Value, sb, depth + 1, compressLevel, singleLineArray, true, dateFormat);
-                if (i < properties.Count - 1)
-                    sb.Append(", ");
-            }
-
-            sb.Append('}');
-            return;
-        }
-
-        sb.AppendLine();
+        writer.WriteWhitespace("\n");
         var childIndent = new string(' ', depth * 2);
         var parentIndent = new string(' ', (depth - 1) * 2);
         for (var i = 0; i < properties.Count; i++)
         {
             var prop = properties[i];
-            sb.Append(childIndent);
-            sb.Append(JsonConvert.ToString(prop.Name));
-            sb.Append(": ");
-            WriteTokenToString(prop.Value, sb, depth + 1, compressLevel, singleLineArray, forceInline, dateFormat);
+            writer.WriteWhitespace(childIndent);
+            writer.WritePropertyName(prop.Name);
+            WriteTokenStream(prop.Value, writer, serializer, depth + 1, rootArrayPerLine, isRoot: false);
             if (i < properties.Count - 1)
-                sb.Append(',');
-            sb.AppendLine();
+                writer.WriteRaw(",");
+            writer.WriteWhitespace("\n");
         }
-        sb.Append(parentIndent);
-        sb.Append('}');
+        writer.WriteWhitespace(parentIndent);
+        writer.WriteEndObject();
     }
 
-    private static void WriteArrayToString(JArray array, StringBuilder sb, int depth, int compressLevel, bool singleLineArray, bool forceInline, string dateFormat)
+    private static void WriteArrayStream(JArray array, JsonTextWriter writer, JsonSerializer serializer, int depth, bool rootArrayPerLine, bool isRoot)
     {
-        var inline = forceInline || singleLineArray || depth >= compressLevel;
-        sb.Append('[');
-        if (array.Count == 0)
-        {
-            sb.Append(']');
-            return;
-        }
+        var perLine = rootArrayPerLine && isRoot;
+        writer.Formatting = perLine ? Formatting.None : Formatting.Indented;
 
-        if (inline)
+        if (perLine)
         {
-            for (var i = 0; i < array.Count; i++)
+            writer.WriteStartArray();
+            if (array.Count == 0)
             {
-                WriteTokenToString(array[i], sb, depth + 1, compressLevel, singleLineArray, true, dateFormat);
-                if (i < array.Count - 1)
-                    sb.Append(", ");
+                writer.WriteEndArray();
+                return;
             }
 
-            sb.Append(']');
+            writer.WriteWhitespace("\n");
+            var childIndent = new string(' ', depth * 2);
+            var parentIndent = new string(' ', (depth - 1) * 2);
+            for (var i = 0; i < array.Count; i++)
+            {
+                writer.WriteWhitespace(childIndent);
+                // 根数组每项单行：紧凑序列化每个元素
+                serializer.Serialize(writer, array[i]);
+                if (i < array.Count - 1)
+                    writer.WriteRaw(",");
+                writer.WriteWhitespace("\n");
+            }
+            writer.WriteWhitespace(parentIndent);
+            writer.WriteEndArray();
             return;
         }
 
-        sb.AppendLine();
-        var childIndent = new string(' ', depth * 2);
-        var parentIndent = new string(' ', (depth - 1) * 2);
-        for (var i = 0; i < array.Count; i++)
-        {
-            sb.Append(childIndent);
-            WriteTokenToString(array[i], sb, depth + 1, compressLevel, singleLineArray, forceInline, dateFormat);
-            if (i < array.Count - 1)
-                sb.Append(',');
-            sb.AppendLine();
-        }
-        sb.Append(parentIndent);
-        sb.Append(']');
+        serializer.Serialize(writer, array);
     }
 
     private async Task UpdateSheetComboAsync()
@@ -548,35 +521,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private void UpdateCompressLevels(int maxDepth)
-    {
-        _updatingCompressLevels = true;
-        try
-        {
-            var currentLevel = GetCompressLevel();
-            var items = new List<ComboBoxItem>
-            {
-                new() { Content = "不压缩", Tag = 0 }
-            };
-
-            for (var i = 1; i <= Math.Max(1, maxDepth); i++)
-            {
-                items.Add(new ComboBoxItem { Content = $"压缩为 {i} 层", Tag = i });
-            }
-
-            ResetComboItems(_compressLevelBox);
-            _compressLevelBox.ItemsSource = items;
-            var target = items.FirstOrDefault(it => it.Tag is int level && level == currentLevel && level <= maxDepth)
-                         ?? items.First();
-            _compressLevelBox.SelectedItem = target;
-        }
-        finally
-        {
-            _updatingCompressLevels = false;
-        }
-    }
-
-    private void RenderHighlightedJson(string json, int compressLevel, bool singleLineArray)
+    private void RenderHighlightedJson(string json, bool rootArrayPerLine)
     {
         if (_previewBlock is null) return;
         var block = _previewBlock;
@@ -586,7 +531,8 @@ public partial class MainWindow : Window
         try
         {
             var token = JToken.Parse(json);
-            AppendToken(token, block.Inlines!, 0, compressLevel, singleLineArray, compressLevel == 1);
+            var isRootArray = token is JArray;
+            AppendToken(token, block.Inlines!, 0, rootArrayPerLine && isRootArray, isRootArray, inlineObjects: false);
         }
         catch
         {
@@ -601,19 +547,17 @@ public partial class MainWindow : Window
     private static readonly IBrush NullBrush = new SolidColorBrush(Color.FromRgb(150, 155, 165));
     private static readonly IBrush PunctuationBrush = new SolidColorBrush(Color.FromRgb(120, 130, 150));
 
-    private void AppendToken(JToken token, InlineCollection inlines, int indent, int compressLevel, bool singleLineArray, bool forceInline)
+    private void AppendToken(JToken token, InlineCollection inlines, int indent, bool rootArrayPerLine, bool isRootArray, bool inlineObjects)
     {
         if (inlines is null) return;
-        var depth = indent + 1;
-        var inline = forceInline || depth >= compressLevel || (singleLineArray && token is JArray);
 
         switch (token.Type)
         {
             case JTokenType.Object:
-                AppendObject((JObject)token, inlines, indent, compressLevel, singleLineArray, inline);
+                AppendObject((JObject)token, inlines, indent, rootArrayPerLine, isRootArray, inlineObjects);
                 break;
             case JTokenType.Array:
-                AppendArray((JArray)token, inlines, indent, compressLevel, singleLineArray, inline);
+                AppendArray((JArray)token, inlines, indent, rootArrayPerLine, isRootArray);
                 break;
             case JTokenType.String:
                 inlines.Add(new Run($"\"{token.Value<string>()}\"") { Foreground = StringBrush });
@@ -635,30 +579,28 @@ public partial class MainWindow : Window
         }
     }
 
-    private void AppendObject(JObject obj, InlineCollection inlines, int indent, int compressLevel, bool singleLineArray, bool forceInline)
+    private void AppendObject(JObject obj, InlineCollection inlines, int indent, bool rootArrayPerLine, bool isRootArray, bool inlineObjects)
     {
-        if (forceInline || obj.Count == 0)
+        if (obj.Count == 0)
         {
             inlines.Add(new Run("{") { Foreground = PunctuationBrush });
-            var props = obj.Properties().ToList();
-            for (var i = 0; i < props.Count; i++)
-            {
-                var prop = props[i];
-                inlines.Add(new Run($"\"{prop.Name}\"") { Foreground = KeyBrush });
-                inlines.Add(new Run(": ") { Foreground = PunctuationBrush });
-                AppendToken(prop.Value, inlines, indent + 1, compressLevel, singleLineArray, true);
-                if (i < props.Count - 1)
-                    inlines.Add(new Run(", ") { Foreground = PunctuationBrush });
-            }
-
             inlines.Add(new Run("}") { Foreground = PunctuationBrush });
             return;
         }
 
-        inlines.Add(new Run("{") { Foreground = PunctuationBrush });
         var properties = obj.Properties().ToList();
-        if (properties.Count == 0)
+        inlines.Add(new Run("{") { Foreground = PunctuationBrush });
+        if (inlineObjects)
         {
+            for (var i = 0; i < properties.Count; i++)
+            {
+                var prop = properties[i];
+                inlines.Add(new Run($"\"{prop.Name}\"") { Foreground = KeyBrush });
+                inlines.Add(new Run(": ") { Foreground = PunctuationBrush });
+                AppendToken(prop.Value, inlines, indent + 1, rootArrayPerLine, isRootArray: false, inlineObjects: true);
+                if (i < properties.Count - 1)
+                    inlines.Add(new Run(", ") { Foreground = PunctuationBrush });
+            }
             inlines.Add(new Run("}") { Foreground = PunctuationBrush });
             return;
         }
@@ -670,7 +612,7 @@ public partial class MainWindow : Window
             inlines.Add(new Run(new string(' ', (indent + 1) * 2)));
             inlines.Add(new Run($"\"{prop.Name}\"") { Foreground = KeyBrush });
             inlines.Add(new Run(": ") { Foreground = PunctuationBrush });
-            AppendToken(prop.Value, inlines, indent + 1, compressLevel, singleLineArray, forceInline);
+            AppendToken(prop.Value, inlines, indent + 1, rootArrayPerLine, isRootArray: false, inlineObjects: false);
             if (i < properties.Count - 1)
                 inlines.Add(new Run(",") { Foreground = PunctuationBrush });
             inlines.Add(new Run("\n"));
@@ -679,9 +621,8 @@ public partial class MainWindow : Window
         inlines.Add(new Run("}") { Foreground = PunctuationBrush });
     }
 
-    private void AppendArray(JArray array, InlineCollection inlines, int indent, int compressLevel, bool singleLineArray, bool forceInline)
+    private void AppendArray(JArray array, InlineCollection inlines, int indent, bool rootArrayPerLine, bool isRootArray)
     {
-        var inline = forceInline || singleLineArray || (compressLevel > 0 && indent + 1 >= compressLevel);
         inlines.Add(new Run("[") { Foreground = PunctuationBrush });
         if (array.Count == 0)
         {
@@ -689,29 +630,23 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (inline)
-        {
-            for (var i = 0; i < array.Count; i++)
-            {
-                // 将数组压缩为单行：逐项拼接，不换行。
-                var tempHost = new TextBlock();
-                AppendToken(array[i], tempHost.Inlines!, indent + 1, compressLevel, singleLineArray, true);
-                foreach (var inlineItem in tempHost.Inlines!)
-                    inlines.Add(inlineItem);
-
-                if (i < array.Count - 1)
-                    inlines.Add(new Run(", ") { Foreground = PunctuationBrush });
-            }
-
-            inlines.Add(new Run("]") { Foreground = PunctuationBrush });
-            return;
-        }
-
+        var perLine = rootArrayPerLine && isRootArray;
         inlines.Add(new Run("\n"));
         for (var i = 0; i < array.Count; i++)
         {
             inlines.Add(new Run(new string(' ', (indent + 1) * 2)));
-            AppendToken(array[i], inlines, indent + 1, compressLevel, singleLineArray, forceInline);
+            if (perLine)
+            {
+                var temp = new TextBlock();
+                AppendToken(array[i], temp.Inlines!, indent + 1, rootArrayPerLine: false, isRootArray: false, inlineObjects: true);
+                foreach (var piece in temp.Inlines!)
+                    inlines.Add(piece);
+            }
+            else
+            {
+                AppendToken(array[i], inlines, indent + 1, rootArrayPerLine: false, isRootArray: false, inlineObjects: false);
+            }
+
             if (i < array.Count - 1)
                 inlines.Add(new Run(",") { Foreground = PunctuationBrush });
             inlines.Add(new Run("\n"));
