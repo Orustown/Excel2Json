@@ -19,60 +19,65 @@
         </Grid.ColumnDefinitions>
 
         <!-- 左侧设置区域 -->
-        <StackPanel Grid.Column="0" Spacing="12" Margin="0,0,6,0">
-          <Border Background="#2F3035" CornerRadius="10" Padding="12">
-            <StackPanel Spacing="10">
-              <TextBlock Text="基础设置" Foreground="#E9EDF4" FontWeight="SemiBold" FontSize="16"/>
-              <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="150,*,Auto">
-                <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                  <TextBlock Foreground="#E9EDF4" Text="Excel/CSV 文件"/>
-                  <Button Content="?" Width="22" Height="22" Background="#2F3035" Foreground="#9DA5B4" BorderBrush="#3A3B40" ToolTip.Tip="选择或拖拽 .xlsx/.xls/.csv，左侧为输入，右侧为输出预览。"/>
-                </StackPanel>
-                <TextBox x:Name="ExcelPathBox" Grid.Row="0" Grid.Column="1" Watermark="选择 .xlsx/.xls/.csv" Background="#1F2024" Foreground="#E9EDF4" BorderBrush="#3A3B40"/>
-                <Button x:Name="BrowseExcelButton" Grid.Row="0" Grid.Column="2" Content="浏览" ToolTip.Tip="从文件系统选取 Excel/CSV 文件"/>
+        <ScrollViewer Grid.Column="0"
+                      Margin="0,0,6,0"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      Background="Transparent">
+          <StackPanel Spacing="12">
+            <Border Background="#2F3035" CornerRadius="10" Padding="12">
+              <StackPanel Spacing="10">
+                <TextBlock Text="基础设置" Foreground="#E9EDF4" FontWeight="SemiBold" FontSize="16"/>
+                <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="150,*,Auto">
+                  <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <TextBlock Foreground="#E9EDF4" Text="Excel/CSV 文件"/>
+                    <Button Content="?" Width="22" Height="22" Background="#2F3035" Foreground="#9DA5B4" BorderBrush="#3A3B40" ToolTip.Tip="选择或拖拽 .xlsx/.xls/.csv，左侧为输入，右侧为输出预览。"/>
+                  </StackPanel>
+                  <TextBox x:Name="ExcelPathBox" Grid.Row="0" Grid.Column="1" Watermark="选择 .xlsx/.xls/.csv" Background="#1F2024" Foreground="#E9EDF4" BorderBrush="#3A3B40"/>
+                  <Button x:Name="BrowseExcelButton" Grid.Row="0" Grid.Column="2" Content="浏览" ToolTip.Tip="从文件系统选取 Excel/CSV 文件"/>
 
-                <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                  <TextBlock Foreground="#E9EDF4" Text="输出 JSON"/>
-                  <Button Content="?" Width="22" Height="22" Background="#2F3035" Foreground="#9DA5B4" BorderBrush="#3A3B40" ToolTip.Tip="默认与 Excel/CSV 同名 .json；可自定义路径。"/>
-                </StackPanel>
-                <TextBox x:Name="JsonPathBox" Grid.Row="1" Grid.Column="1" Watermark="输出路径" Background="#1F2024" Foreground="#E9EDF4" BorderBrush="#3A3B40"/>
-                <Button x:Name="BrowseJsonButton" Grid.Row="1" Grid.Column="2" Content="浏览" ToolTip.Tip="保存为指定 JSON 路径"/>
-              </Grid>
-            </StackPanel>
-          </Border>
+                  <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <TextBlock Foreground="#E9EDF4" Text="输出 JSON"/>
+                    <Button Content="?" Width="22" Height="22" Background="#2F3035" Foreground="#9DA5B4" BorderBrush="#3A3B40" ToolTip.Tip="默认与 Excel/CSV 同名 .json；可自定义路径。"/>
+                  </StackPanel>
+                  <TextBox x:Name="JsonPathBox" Grid.Row="1" Grid.Column="1" Watermark="输出路径" Background="#1F2024" Foreground="#E9EDF4" BorderBrush="#3A3B40"/>
+                  <Button x:Name="BrowseJsonButton" Grid.Row="1" Grid.Column="2" Content="浏览" ToolTip.Tip="保存为指定 JSON 路径"/>
+                </Grid>
+              </StackPanel>
+            </Border>
 
-          <Border Background="#2F3035" CornerRadius="10" Padding="12">
-            <StackPanel Spacing="10">
+            <Border Background="#2F3035" CornerRadius="10" Padding="12">
+              <StackPanel Spacing="10">
               <TextBlock Text="格式设置" Foreground="#E9EDF4" FontWeight="SemiBold" FontSize="16"/>
-              <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="150,*">
+              <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="150,*">
                 <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                   <TextBlock Foreground="#E9EDF4" Text="表头行数"/>
                   <Button Content="?" Width="22" Height="22" Background="#2F3035" Foreground="#9DA5B4" BorderBrush="#3A3B40" ToolTip.Tip="列名所在行号（从 1 开始），默认 3；数据从该行之后读取。"/>
                 </StackPanel>
                 <NumericUpDown x:Name="HeaderRowsBox" Grid.Row="0" Grid.Column="1" Minimum="1" Maximum="50" Value="3" Increment="1" Background="#1F2024" Foreground="#E9EDF4" BorderBrush="#3A3B40"/>
 
-                <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                  <TextBlock Foreground="#E9EDF4" Text="导出编码"/>
-                  <Button Content="?" Width="22" Height="22" Background="#2F3035" Foreground="#9DA5B4" BorderBrush="#3A3B40" ToolTip.Tip="设置导出 JSON 文件的编码；常用：utf-8/utf-16/gb2312/gbk/shift-jis 等。"/>
-                </StackPanel>
-                <ComboBox x:Name="EncodingBox" Grid.Row="1" Grid.Column="1" Background="#1F2024" Foreground="#E9EDF4" BorderBrush="#3A3B40" SelectedIndex="0"
-                          ToolTip.Tip="选择导出编码">
-                  <ComboBoxItem Content="utf-8"/>
-                  <ComboBoxItem Content="utf-16"/>
-                  <ComboBoxItem Content="utf-16LE"/>
-                  <ComboBoxItem Content="utf-16BE"/>
-                  <ComboBoxItem Content="gb2312"/>
-                  <ComboBoxItem Content="gbk"/>
-                  <ComboBoxItem Content="shift-jis"/>
-                  <ComboBoxItem Content="big5"/>
-                  <ComboBoxItem Content="iso-8859-1"/>
-                  <ComboBoxItem Content="windows-1252"/>
-                </ComboBox>
+                  <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <TextBlock Foreground="#E9EDF4" Text="导出编码"/>
+                    <Button Content="?" Width="22" Height="22" Background="#2F3035" Foreground="#9DA5B4" BorderBrush="#3A3B40" ToolTip.Tip="设置导出 JSON 文件的编码；常用：utf-8/utf-16/gb2312/gbk/shift-jis 等。"/>
+                  </StackPanel>
+                  <ComboBox x:Name="EncodingBox" Grid.Row="1" Grid.Column="1" Background="#1F2024" Foreground="#E9EDF4" BorderBrush="#3A3B40" SelectedIndex="0"
+                            ToolTip.Tip="选择导出编码">
+                    <ComboBoxItem Content="utf-8"/>
+                    <ComboBoxItem Content="utf-16"/>
+                    <ComboBoxItem Content="utf-16LE"/>
+                    <ComboBoxItem Content="utf-16BE"/>
+                    <ComboBoxItem Content="gb2312"/>
+                    <ComboBoxItem Content="gbk"/>
+                    <ComboBoxItem Content="shift-jis"/>
+                    <ComboBoxItem Content="big5"/>
+                    <ComboBoxItem Content="iso-8859-1"/>
+                    <ComboBoxItem Content="windows-1252"/>
+                  </ComboBox>
 
-                <StackPanel Grid.Row="2" Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                  <TextBlock Foreground="#E9EDF4" Text="导出日期格式"/>
-                  <Button Content="?" Width="22" Height="22" Background="#2F3035" Foreground="#9DA5B4" BorderBrush="#3A3B40" ToolTip.Tip="JSON 中日期时间的输出格式；可选常用模板。"/>
-                </StackPanel>
+                  <StackPanel Grid.Row="2" Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <TextBlock Foreground="#E9EDF4" Text="导出日期格式"/>
+                    <Button Content="?" Width="22" Height="22" Background="#2F3035" Foreground="#9DA5B4" BorderBrush="#3A3B40" ToolTip.Tip="JSON 中日期时间的输出格式；可选常用模板。"/>
+                  </StackPanel>
                 <ComboBox x:Name="DateFormatBox" Grid.Row="2" Grid.Column="1" Background="#1F2024" Foreground="#E9EDF4" BorderBrush="#3A3B40" SelectedIndex="0"
                           ToolTip.Tip="常用格式：yyyy-MM-dd HH:mm:ss / yyyy-MM-dd / yyyy/MM/dd HH:mm:ss">
                   <ComboBoxItem Content="yyyy-MM-dd HH:mm:ss"/>
@@ -82,51 +87,61 @@
                 </ComboBox>
 
                 <StackPanel Grid.Row="3" Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                  <TextBlock Foreground="#E9EDF4" Text="压缩为几层"/>
+                  <Button Content="?" Width="22" Height="22" Background="#2F3035" Foreground="#9DA5B4" BorderBrush="#3A3B40" ToolTip.Tip="选择保留的层级；1 表示整体一行，2 表示保留根节点并将其子节点压缩为一行，0 表示不压缩。"/>
+                </StackPanel>
+                <ComboBox x:Name="CompressLevelBox" Grid.Row="3" Grid.Column="1" Background="#1F2024" Foreground="#E9EDF4" BorderBrush="#3A3B40" SelectedIndex="0">
+                  <ComboBoxItem Content="不压缩" Tag="0"/>
+                  <ComboBoxItem Content="压缩为 1 层" Tag="1"/>
+                </ComboBox>
+
+                <StackPanel Grid.Row="4" Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                   <TextBlock Foreground="#E9EDF4" Text="目标 Sheet（自动检测）"/>
                   <Button Content="?" Width="22" Height="22" Background="#2F3035" Foreground="#9DA5B4" BorderBrush="#3A3B40" ToolTip.Tip="自动列出工作簿中的 Sheet；选择后仅导出该 Sheet，默认导出全部（CSV 仅一个 Sheet）。"/>
                 </StackPanel>
-                <ComboBox x:Name="SheetNameBox" Grid.Row="3" Grid.Column="1" Background="#1F2024" Foreground="#E9EDF4" BorderBrush="#3A3B40" SelectedIndex="0">
+                <ComboBox x:Name="SheetNameBox" Grid.Row="4" Grid.Column="1" Background="#1F2024" Foreground="#E9EDF4" BorderBrush="#3A3B40" SelectedIndex="0">
                   <ComboBoxItem Content="全部 Sheet（默认）"/>
                 </ComboBox>
               </Grid>
             </StackPanel>
           </Border>
 
-          <Border Background="#2F3035" CornerRadius="10" Padding="12">
-            <StackPanel Spacing="10">
-              <TextBlock Text="导出选项" Foreground="#E9EDF4" FontWeight="SemiBold" FontSize="16"/>
-              <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="150,*">
-                <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                  <TextBlock Foreground="#E9EDF4" Text="排除前缀"/>
-                  <Button Content="?" Width="22" Height="22" Background="#2F3035" Foreground="#9DA5B4" BorderBrush="#3A3B40" ToolTip.Tip="忽略以此前缀开头的表名或列名（键名），例如 # 或 _tmp。"/>
-                </StackPanel>
-                <TextBox x:Name="ExcludePrefixBox" Grid.Row="0" Grid.Column="1" Background="#1F2024" Foreground="#E9EDF4" BorderBrush="#3A3B40" />
+            <Border Background="#2F3035" CornerRadius="10" Padding="12">
+              <StackPanel Spacing="10">
+                <TextBlock Text="导出选项" Foreground="#E9EDF4" FontWeight="SemiBold" FontSize="16"/>
+                <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="150,*">
+                  <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <TextBlock Foreground="#E9EDF4" Text="排除前缀"/>
+                    <Button Content="?" Width="22" Height="22" Background="#2F3035" Foreground="#9DA5B4" BorderBrush="#3A3B40" ToolTip.Tip="忽略以此前缀开头的表名或列名（键名），例如 # 或 _tmp。"/>
+                  </StackPanel>
+                  <TextBox x:Name="ExcludePrefixBox" Grid.Row="0" Grid.Column="1" Background="#1F2024" Foreground="#E9EDF4" BorderBrush="#3A3B40" />
 
-                <WrapPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" ItemWidth="160" Margin="0,4,0,0">
-                  <CheckBox x:Name="LowercaseBox" Content="Key 小写" Foreground="#E9EDF4" ToolTip.Tip="仅将字段键名转小写，便于前端使用。" Margin="0,0,12,8" />
-                  <CheckBox x:Name="ArrayBox" Content="导出为数组" Foreground="#E9EDF4" ToolTip.Tip="以数组输出，而非以首列为键的对象。" Margin="0,0,12,8" />
-                  <CheckBox x:Name="ForceSheetBox" Content="保留 Sheet 包装" Foreground="#E9EDF4" ToolTip.Tip="即使只有一个 Sheet 也保留顶层 Sheet 名。" Margin="0,0,12,8" />
-                  <CheckBox x:Name="CellJsonBox" Content="识别 JSON 值" Foreground="#E9EDF4" ToolTip.Tip="若单元格内是 JSON 文本，则将该值解析为对象/数组。" Margin="0,0,12,8" />
-                  <CheckBox x:Name="AllStringBox" Content="值转字符串" Foreground="#E9EDF4" ToolTip.Tip="将所有输出值转为字符串（键名不受影响），便于弱类型消费。" Margin="0,0,12,8" />
-                  <CheckBox x:Name="SingleLineArrayBox" Content="数组单行输出" Foreground="#E9EDF4" ToolTip.Tip="将 JSON 数组压缩为单行展示，便于与 Excel 行对应查看。" Margin="0,0,12,8" />
-                </WrapPanel>
-              </Grid>
-            </StackPanel>
-          </Border>
-
-          <Border Background="#2F3035" CornerRadius="10" Padding="12">
-            <StackPanel Spacing="10">
-              <TextBlock Text="导出与日志" Foreground="#E9EDF4" FontWeight="SemiBold" FontSize="16"/>
-              <StackPanel Orientation="Horizontal" Spacing="10">
-                <Button x:Name="ConvertButton" Content="导出 JSON" Width="150" Height="38" Background="#2D78FF" Foreground="White" BorderBrush="#2D78FF" ToolTip.Tip="按照当前设置生成并保存 JSON 文件"/>
-                <TextBlock x:Name="StatusText" VerticalAlignment="Center" Foreground="#8AB4FF" Text="等待操作..." />
+                  <WrapPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" ItemWidth="160" Margin="0,4,0,0">
+                    <CheckBox x:Name="LowercaseBox" Content="Key 小写" Foreground="#E9EDF4" ToolTip.Tip="仅将字段键名转小写，便于前端使用。" Margin="0,0,12,8" />
+                    <CheckBox x:Name="ArrayBox" Content="导出为数组" Foreground="#E9EDF4" ToolTip.Tip="以数组输出，而非以首列为键的对象。" Margin="0,0,12,8" />
+                    <CheckBox x:Name="ForceSheetBox" Content="保留 Sheet 包装" Foreground="#E9EDF4" ToolTip.Tip="即使只有一个 Sheet 也保留顶层 Sheet 名。" Margin="0,0,12,8" />
+                    <CheckBox x:Name="CellJsonBox" Content="识别 JSON 值" Foreground="#E9EDF4" ToolTip.Tip="若单元格内是 JSON 文本，则将该值解析为对象/数组。" Margin="0,0,12,8" />
+                    <CheckBox x:Name="AllStringBox" Content="值转字符串" Foreground="#E9EDF4" ToolTip.Tip="将所有输出值转为字符串（键名不受影响），便于弱类型消费。" Margin="0,0,12,8" />
+                    <CheckBox x:Name="SingleLineArrayBox" Content="数组单行输出" Foreground="#E9EDF4" ToolTip.Tip="将 JSON 数组压缩为单行展示，便于与 Excel 行对应查看。" Margin="0,0,12,8" />
+                  </WrapPanel>
+                </Grid>
               </StackPanel>
-              <Border Background="#1F2024" BorderBrush="#3A3B40" BorderThickness="1" CornerRadius="8" Padding="10" Height="200">
-                <TextBox x:Name="LogBox" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" Background="Transparent" BorderThickness="0" Foreground="#E9EDF4" Watermark="操作日志将显示在此处"/>
-              </Border>
-            </StackPanel>
-          </Border>
-        </StackPanel>
+            </Border>
+
+            <Border Background="#2F3035" CornerRadius="10" Padding="12">
+              <StackPanel Spacing="10">
+                <TextBlock Text="导出与日志" Foreground="#E9EDF4" FontWeight="SemiBold" FontSize="16"/>
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <Button x:Name="ConvertButton" Content="导出 JSON" Width="150" Height="38" Background="#2D78FF" Foreground="White" BorderBrush="#2D78FF" ToolTip.Tip="按照当前设置生成并保存 JSON 文件"/>
+                  <TextBlock x:Name="StatusText" VerticalAlignment="Center" Foreground="#8AB4FF" Text="等待操作..." />
+                </StackPanel>
+                <Border Background="#1F2024" BorderBrush="#3A3B40" BorderThickness="1" CornerRadius="8" Padding="10" Height="200">
+                  <TextBox x:Name="LogBox" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" Background="Transparent" BorderThickness="0" Foreground="#E9EDF4" Watermark="操作日志将显示在此处"/>
+                </Border>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
 
         <!-- 分隔条 -->
         <GridSplitter Grid.Column="1"

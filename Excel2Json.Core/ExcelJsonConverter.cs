@@ -1,8 +1,10 @@
 ﻿using System.Data;
 using System.Text;
+using System.Linq;
 using ExcelDataReader;
 using Microsoft.VisualBasic.FileIO;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace Excel2Json.Core;
 
@@ -96,7 +98,7 @@ public sealed class ExcelJsonConverter
         };
     }
 
-    private static string BuildJson(DataSet dataSet, ConversionOptions opt)
+    private static string BuildJson(DataSet dataSet, ConversionOptions opt, out int maxDepth)
     {
         var validSheets = new List<DataTable>();
         foreach (DataTable sheet in dataSet.Tables)
@@ -107,25 +109,32 @@ public sealed class ExcelJsonConverter
                 validSheets.Add(sheet);
         }
 
+        object? data;
+        if (!opt.ForceSheetName && validSheets.Count == 1)
+        {
+            data = ConvertSheet(validSheets[0], opt);
+        }
+        else
+        {
+            var map = new Dictionary<string, object?>();
+            foreach (var sheet in validSheets)
+            {
+                map[sheet.TableName] = ConvertSheet(sheet, opt);
+            }
+
+            data = map;
+        }
+
+        var token = data is JToken jToken ? jToken : JToken.FromObject(data ?? new object());
+        maxDepth = CalculateDepth(token);
+
         var jsonSettings = new JsonSerializerSettings
         {
             DateFormatString = opt.DateFormat,
-            Formatting = opt.SingleLineArray ? Formatting.None : Formatting.Indented
+            Formatting = Formatting.Indented
         };
 
-        if (!opt.ForceSheetName && validSheets.Count == 1)
-        {
-            var single = ConvertSheet(validSheets[0], opt);
-            return JsonConvert.SerializeObject(single, jsonSettings);
-        }
-
-        var data = new Dictionary<string, object?>();
-        foreach (var sheet in validSheets)
-        {
-            data[sheet.TableName] = ConvertSheet(sheet, opt);
-        }
-
-        return JsonConvert.SerializeObject(data, jsonSettings);
+        return JsonConvert.SerializeObject(token, jsonSettings);
     }
 
     private static object ConvertSheet(DataTable sheet, ConversionOptions opt)
@@ -246,10 +255,10 @@ public sealed class ExcelJsonConverter
         var dataSet = LoadWorkbook(options.ExcelPath, options.HeaderRows, options.SheetName);
 
         cancellationToken.ThrowIfCancellationRequested();
-        var json = BuildJson(dataSet, options);
+        var json = BuildJson(dataSet, options, out var maxDepth);
         var rows = dataSet.Tables.Cast<DataTable>().Sum(t => Math.Max(0, t.Rows.Count - Math.Max(options.HeaderRows - 1, 0)));
 
-        return new ConversionPreview(json, dataSet.Tables.Count, rows);
+        return new ConversionPreview(json, dataSet.Tables.Count, rows, maxDepth);
     }
 
     private static DataSet LoadCsv(string path, int headerRows)
@@ -300,8 +309,18 @@ public sealed class ExcelJsonConverter
         dataSet.Tables.Add(table);
         return dataSet;
     }
+
+    private static int CalculateDepth(JToken token)
+    {
+        if (token is not JContainer container || !container.HasValues)
+            return 1;
+
+        var depths = container.Children().Select(CalculateDepth).ToList();
+        return 1 + (depths.Count == 0 ? 0 : depths.Max());
+    }
+
 }
 
 public sealed record ConversionResult(string OutputPath, int Sheets, int Rows);
 
-public sealed record ConversionPreview(string Json, int Sheets, int Rows);
+public sealed record ConversionPreview(string Json, int Sheets, int Rows, int MaxDepth);
