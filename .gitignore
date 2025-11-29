@@ -1,0 +1,33 @@
+# Rider / VS / VS Code 之类 IDE 配置
+.idea/
+.vs/
+.vscode/
+*.user
+*.suo
+*.userprefs
+*.csproj.user
+*.DotSettings.user
+
+# 编译输出
+bin/
+obj/
+[Bb]uild/
+[Ll]og/
+[Tt]est[Rr]esult*/
+[Rr]elease/
+[Dd]ebug/
+
+# NuGet
+packages/
+*.nupkg
+*.snupkg
+
+# 临时文件
+*.tmp
+*.log
+*.cache
+*.bak
+
+# 系统垃圾
+Thumbs.db
+.DS_Store

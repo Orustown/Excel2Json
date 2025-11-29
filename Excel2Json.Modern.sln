@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excel2Json.Core", "Excel2Json.Core\Excel2Json.Core.csproj", "{EB89646A-EF1A-4602-963A-0F259A6677C6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excel2Json.App", "Excel2Json.App\Excel2Json.App.csproj", "{A4FD4351-A809-4ED7-914E-E6C518143AF9}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{EB89646A-EF1A-4602-963A-0F259A6677C6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EB89646A-EF1A-4602-963A-0F259A6677C6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EB89646A-EF1A-4602-963A-0F259A6677C6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EB89646A-EF1A-4602-963A-0F259A6677C6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A4FD4351-A809-4ED7-914E-E6C518143AF9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A4FD4351-A809-4ED7-914E-E6C518143AF9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A4FD4351-A809-4ED7-914E-E6C518143AF9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A4FD4351-A809-4ED7-914E-E6C518143AF9}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
