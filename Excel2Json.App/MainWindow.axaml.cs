@@ -19,6 +19,7 @@ using Avalonia.Threading;
 using Excel2Json.Core;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using System.Diagnostics;
 
 namespace Excel2Json.App;
 
@@ -30,6 +31,7 @@ public partial class MainWindow : Window
     private Button _browseJsonButton = null!;
     private Button _clearSelectionButton = null!;
     private Button _copyPreviewButton = null!;
+    private Button _viewJsonButton = null!;
     private TextBox _excelPathBox = null!;
     private TextBox _jsonPathBox = null!;
     private NumericUpDown _headerRowsBox = null!;
@@ -66,6 +68,7 @@ public partial class MainWindow : Window
         _browseJsonButton.Click += OnBrowseJson;
         _clearSelectionButton.Click += OnClearSelection;
         _copyPreviewButton.Click += OnCopyPreview;
+        _viewJsonButton.Click += OnViewJson;
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
         AddHandler(DragDrop.DropEvent, OnDrop);
 
@@ -81,6 +84,7 @@ public partial class MainWindow : Window
         _browseJsonButton = this.FindControl<Button>("BrowseJsonButton") ?? throw new InvalidOperationException("BrowseJsonButton not found");
         _clearSelectionButton = this.FindControl<Button>("ClearSelectionButton") ?? throw new InvalidOperationException("ClearSelectionButton not found");
         _copyPreviewButton = this.FindControl<Button>("CopyPreviewButton") ?? throw new InvalidOperationException("CopyPreviewButton not found");
+        _viewJsonButton = this.FindControl<Button>("ViewJsonButton") ?? throw new InvalidOperationException("ViewJsonButton not found");
         _excelPathBox = this.FindControl<TextBox>("ExcelPathBox") ?? throw new InvalidOperationException("ExcelPathBox not found");
         _jsonPathBox = this.FindControl<TextBox>("JsonPathBox") ?? throw new InvalidOperationException("JsonPathBox not found");
         _headerRowsBox = this.FindControl<NumericUpDown>("HeaderRowsBox") ?? throw new InvalidOperationException("HeaderRowsBox not found");
@@ -99,6 +103,7 @@ public partial class MainWindow : Window
         _previewStatusText = this.FindControl<TextBlock>("PreviewStatusText") ?? throw new InvalidOperationException("PreviewStatusText not found");
         _previewBlock = this.FindControl<TextBlock>("PreviewBlock") ?? throw new InvalidOperationException("PreviewBlock not found");
         _previewWatermark = this.FindControl<TextBlock>("PreviewWatermark") ?? throw new InvalidOperationException("PreviewWatermark not found");
+        UpdateViewButtonState();
     }
 
     private void BindOptionChangeHandlers()
@@ -209,6 +214,7 @@ public partial class MainWindow : Window
         _logBox.Text = string.Empty;
         ShowPreviewWatermark(PreviewWatermarkText);
         _previewStatusText.Text = "等待选择文件...";
+        UpdateViewButtonState();
     }
 
     private async void OnConvertClicked(object? sender, RoutedEventArgs e)
@@ -232,6 +238,7 @@ public partial class MainWindow : Window
             _statusText.Text = $"完成：{options.OutputPath}";
             Log($"完成，Sheet: {preview.Sheets}，行: {preview.Rows}");
             SchedulePreviewRefresh();
+            UpdateViewButtonState();
         }
         catch (Exception ex)
         {
@@ -310,6 +317,7 @@ public partial class MainWindow : Window
         _previewCts = new CancellationTokenSource();
         var token = _previewCts.Token;
         _ = RefreshPreviewAsync(token);
+        UpdateViewButtonState();
     }
 
     private async Task RefreshPreviewAsync(CancellationToken token)
@@ -386,7 +394,7 @@ public partial class MainWindow : Window
         block.Inlines!.Clear();
         block.Text = text;
         block.TextAlignment = TextAlignment.Left;
-        block.TextWrapping = TextWrapping.Wrap;
+        block.TextWrapping = TextWrapping.NoWrap;
         block.HorizontalAlignment = HorizontalAlignment.Stretch;
         block.VerticalAlignment = VerticalAlignment.Stretch;
         block.Foreground = PreviewTextBrush;
@@ -423,6 +431,32 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnViewJson(object? sender, RoutedEventArgs e)
+    {
+        var path = _jsonPathBox.Text?.Trim();
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            _previewStatusText.Text = "未找到可查看的文件";
+            UpdateViewButtonState();
+            return;
+        }
+
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = path,
+                UseShellExecute = true
+            };
+            Process.Start(psi);
+            _previewStatusText.Text = "已打开文件";
+        }
+        catch (Exception ex)
+        {
+            _previewStatusText.Text = $"打开失败：{ex.Message}";
+        }
+    }
+
     private void SetPreviewPlain(string text)
     {
         if (_previewBlock is null) return;
@@ -430,7 +464,7 @@ public partial class MainWindow : Window
         block.Inlines!.Clear();
         block.Text = text;
         block.TextAlignment = TextAlignment.Left;
-        block.TextWrapping = TextWrapping.Wrap;
+        block.TextWrapping = TextWrapping.NoWrap;
         block.HorizontalAlignment = HorizontalAlignment.Stretch;
         block.VerticalAlignment = VerticalAlignment.Stretch;
         block.Foreground = PreviewTextBrush;
@@ -457,6 +491,12 @@ public partial class MainWindow : Window
         if (combo.SelectedItem is ComboBoxItem item && item.Content is string content)
             return content.Trim();
         return fallback;
+    }
+
+    private void UpdateViewButtonState()
+    {
+        var path = _jsonPathBox.Text?.Trim();
+        _viewJsonButton.IsEnabled = !string.IsNullOrWhiteSpace(path) && File.Exists(path);
     }
 
     private string? GetSheetSelection()
@@ -590,8 +630,8 @@ public partial class MainWindow : Window
             for (var i = 0; i < array.Count; i++)
             {
                 writer.WriteWhitespace(childIndent);
-                // 根数组每项单行：紧凑序列化每个元素，内部对象/数组保持单行
-                WriteTokenStream(array[i], writer, serializer, depth + 1, rootArrayPerLine: false, isRoot: false, inlineObjects: true);
+                // 根数组每项单行：直接紧凑序列化每个元素
+                serializer.Serialize(writer, array[i]);
                 if (i < array.Count - 1)
                     writer.WriteRaw(",");
                 writer.WriteWhitespace("\n");

@@ -29,7 +29,7 @@
             <Border Background="#2F3035" CornerRadius="10" Padding="12">
               <StackPanel Spacing="10">
                 <TextBlock Text="基础设置" Foreground="#E9EDF4" FontWeight="SemiBold" FontSize="16"/>
-              <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="150,*,Auto,Auto">
+              <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="150,*,Auto,Auto,Auto">
                 <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                   <TextBlock Foreground="#E9EDF4" Text="Excel/CSV 文件"/>
                   <Button Content="?" Width="22" Height="22" Background="#2F3035" Foreground="#9DA5B4" BorderBrush="#3A3B40" ToolTip.Tip="选择或拖拽 .xlsx/.xls/.csv，左侧为输入，右侧为输出预览。"/>
@@ -44,6 +44,7 @@
                   </StackPanel>
                   <TextBox x:Name="JsonPathBox" Grid.Row="1" Grid.Column="1" Watermark="输出路径" Background="#1F2024" Foreground="#E9EDF4" BorderBrush="#3A3B40"/>
                   <Button x:Name="BrowseJsonButton" Grid.Row="1" Grid.Column="2" Content="浏览" ToolTip.Tip="保存为指定 JSON 路径"/>
+                  <Button x:Name="ViewJsonButton" Grid.Row="1" Grid.Column="3" Content="查看" ToolTip.Tip="打开已导出的 JSON 文件" IsEnabled="False"/>
                 </Grid>
               </StackPanel>
             </Border>
@@ -185,7 +186,7 @@
                            FontSize="13"
                            Foreground="#E9EDF4"
                            TextAlignment="Left"
-                           TextWrapping="Wrap"
+                           TextWrapping="NoWrap"
                            Text=""/>
               </ScrollViewer>
             </Grid>
