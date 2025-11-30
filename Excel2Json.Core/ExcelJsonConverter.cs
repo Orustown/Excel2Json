@@ -270,25 +270,14 @@ public sealed class ExcelJsonConverter
         {
             var settings = new JsonSerializerSettings { DateFormatString = opt.DateFormat, Formatting = Formatting.Indented };
 
-            // 根数组按行输出：逐元素单行拼接，避免手写 JsonWriter 产生分隔符问题。
-            if (opt.SingleLineArray && token is JArray rootArray)
+            // 单行数组模式：所有数组元素逐行输出，其余使用标准缩进。
+            if (opt.SingleLineArray)
             {
                 var sb = new StringBuilder();
-                sb.AppendLine("[");
-                for (var i = 0; i < rootArray.Count; i++)
-                {
-                    var item = rootArray[i];
-                    var serialized = JsonConvert.SerializeObject(item, settings);
-                    sb.Append("  ").Append(serialized);
-                    if (i < rootArray.Count - 1)
-                        sb.Append(",");
-                    sb.AppendLine();
-                }
-                sb.Append("]");
+                WriteTokenPerLine(token, sb, depth: 0, settings, indentSize: 2);
                 return sb.ToString();
             }
 
-            // 其余情况走标准缩进序列化。
             return JsonConvert.SerializeObject(token, settings);
         }
         catch (Exception ex)
@@ -296,6 +285,68 @@ public sealed class ExcelJsonConverter
             // 序列化失败时输出原始 ToString，附加异常信息便于日志排查。
             return $"// FormatJson failed: {ex.Message}{Environment.NewLine}{token}";
         }
+    }
+
+    private static void WriteTokenPerLine(JToken token, StringBuilder sb, int depth, JsonSerializerSettings settings, int indentSize)
+    {
+        switch (token.Type)
+        {
+            case JTokenType.Object:
+                WriteObjectPerLine((JObject)token, sb, depth, settings, indentSize);
+                break;
+            case JTokenType.Array:
+                WriteArrayPerLine((JArray)token, sb, depth, settings, indentSize);
+                break;
+            default:
+                sb.Append(JsonConvert.SerializeObject(token, settings));
+                break;
+        }
+    }
+
+    private static void WriteObjectPerLine(JObject obj, StringBuilder sb, int depth, JsonSerializerSettings settings, int indentSize)
+    {
+        sb.Append('{');
+        var properties = obj.Properties().ToList();
+        if (properties.Count == 0)
+        {
+            sb.Append('}');
+            return;
+        }
+        
+        for (var i = 0; i < properties.Count; i++)
+        {
+            var prop = properties[i];
+            sb.Append(JsonConvert.SerializeObject(prop.Name, settings));
+            sb.Append(": ");
+            WriteTokenPerLine(prop.Value, sb, depth + 1, settings, indentSize);
+            if (i < properties.Count - 1)
+                sb.Append(',');
+        }
+        sb.Append('}');
+    }
+
+    private static void WriteArrayPerLine(JArray array, StringBuilder sb, int depth, JsonSerializerSettings settings, int indentSize)
+    {
+        sb.Append('[');
+        if (array.Count == 0)
+        {
+            sb.Append(']');
+            return;
+        }
+
+        sb.Append(Environment.NewLine);
+        var childIndent = new string(' ', (depth + 1) * indentSize);
+        var parentIndent = new string(' ', depth * indentSize);
+        for (var i = 0; i < array.Count; i++)
+        {
+            sb.Append(childIndent);
+            WriteTokenPerLine(array[i], sb, depth + 1, settings, indentSize);
+            if (i < array.Count - 1)
+                sb.Append(',');
+            sb.Append(Environment.NewLine);
+        }
+        sb.Append(parentIndent);
+        sb.Append(']');
     }
 
     private static DataSet LoadCsv(string path, int headerRows)
