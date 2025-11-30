@@ -145,14 +145,17 @@
         <Grid Grid.Column="2" RowDefinitions="Auto,*" ColumnDefinitions="*" Margin="10,0,0,0" MinWidth="380">
           <Border Grid.Row="0" Background="#2F3035" CornerRadius="10" Padding="12">
             <StackPanel Spacing="6">
-              <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                <TextBlock Text="JSON 预览" Foreground="#E9EDF4" FontSize="18" FontWeight="SemiBold"/>
-                <TextBlock x:Name="PreviewStatusText" Foreground="#8AB4FF" VerticalAlignment="Center" Text="等待选择文件..." />
-                <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
+              <Grid ColumnDefinitions="*,*" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                  <TextBlock Text="JSON 预览" Foreground="#E9EDF4" FontSize="18" FontWeight="SemiBold"/>
+                  <TextBlock x:Name="PreviewStatusText" Foreground="#8AB4FF" VerticalAlignment="Center" Text="等待选择文件..." />
+                </StackPanel>
+                <WrapPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center">
                   <Button x:Name="ConvertButton"
                           Content="导出 JSON"
                           MinWidth="120"
                           Padding="12,6"
+                          Margin="0,0,6,6"
                           Background="#2D78FF"
                           Foreground="White"
                           BorderBrush="#2D78FF"
@@ -161,12 +164,13 @@
                           Content="复制预览"
                           MinWidth="90"
                           Padding="12,6"
+                          Margin="0,0,0,6"
                           Background="#2F3035"
                           Foreground="#E9EDF4"
                           BorderBrush="#3A3B40"
                           ToolTip.Tip="将当前预览内容复制到剪贴板"/>
-                </StackPanel>
-              </StackPanel>
+                </WrapPanel>
+              </Grid>
               <TextBlock Foreground="#9DA5B4" Text="右侧预览、复制与导出使用同一份数据（含数组按行输出、日期格式、编码）。"/>
             </StackPanel>
           </Border>

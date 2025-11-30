@@ -250,7 +250,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            Log($"错误：{ex.Message}");
+            LogException("导出失败", ex);
             await new MessageBox("导出失败", ex.Message).ShowDialog(this);
         }
         finally
@@ -373,7 +373,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            Log($"预览失败：{ex.Message}");
+            LogException("预览失败", ex);
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 SetPreviewPlain($"// 预览失败：{ex.Message}");
@@ -396,6 +396,12 @@ public partial class MainWindow : Window
         builder.AppendLine($"[{timestamp}] {message}");
         _logBox.Text = builder.ToString();
         _logBox.CaretIndex = _logBox.Text.Length;
+    }
+
+    private void LogException(string action, Exception ex)
+    {
+        // 将异常完整写入操作日志，便于排查。
+        Log($"{action}：{ex}");
     }
 
     private void RenderPreviewText(string text)
@@ -427,7 +433,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            Log($"复制预览失败：{ex.Message}");
+            LogException("复制预览失败", ex);
             _previewStatusText.Text = $"复制失败：{ex.Message}";
         }
     }
@@ -455,7 +461,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            Log($"打开文件失败：{ex.Message}");
+            LogException("打开文件失败", ex);
             _previewStatusText.Text = $"打开失败：{ex.Message}";
         }
     }
@@ -544,7 +550,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            Log($"获取 Sheet 列表失败：{ex.Message}");
+            LogException("获取 Sheet 列表失败", ex);
         }
     }
 
@@ -572,7 +578,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            Log($"JSON 高亮失败：{ex.Message}");
+            LogException("JSON 高亮失败", ex);
             block.Text = json;
             _lastPreviewText = json;
         }
