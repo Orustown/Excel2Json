@@ -11,6 +11,7 @@ using Avalonia.Controls.Documents;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
@@ -45,8 +46,10 @@ public partial class MainWindow : Window
     private TextBox _logBox = null!;
     private TextBlock _previewStatusText = null!;
     private TextBlock _previewBlock = null!;
+    private TextBlock _previewWatermark = null!;
     private CancellationTokenSource? _previewCts;
     private const string DefaultSheetPlaceholder = "全部 Sheet（默认）";
+    private const string PreviewWatermarkText = "// 请拖拽或选择 Excel/CSV 文件以生成预览。";
 
     public MainWindow()
     {
@@ -54,6 +57,7 @@ public partial class MainWindow : Window
         BindControls();
         BindOptionChangeHandlers();
         _ = UpdateSheetComboAsync();
+        ShowPreviewWatermark(PreviewWatermarkText);
 
         _convertButton.Click += OnConvertClicked;
         _browseExcelButton.Click += OnBrowseExcel;
@@ -90,6 +94,7 @@ public partial class MainWindow : Window
         _logBox = this.FindControl<TextBox>("LogBox") ?? throw new InvalidOperationException("LogBox not found");
         _previewStatusText = this.FindControl<TextBlock>("PreviewStatusText") ?? throw new InvalidOperationException("PreviewStatusText not found");
         _previewBlock = this.FindControl<TextBlock>("PreviewBlock") ?? throw new InvalidOperationException("PreviewBlock not found");
+        _previewWatermark = this.FindControl<TextBlock>("PreviewWatermark") ?? throw new InvalidOperationException("PreviewWatermark not found");
     }
 
     private void BindOptionChangeHandlers()
@@ -198,7 +203,7 @@ public partial class MainWindow : Window
         _sheetNameBox.ItemsSource = new List<string> { DefaultSheetPlaceholder };
         _sheetNameBox.SelectedIndex = 0;
         _logBox.Text = string.Empty;
-        SetPreviewPlain("// 请选择 Excel/CSV 文件以生成预览。");
+        ShowPreviewWatermark(PreviewWatermarkText);
         _previewStatusText.Text = "等待选择文件...";
     }
 
@@ -313,7 +318,7 @@ public partial class MainWindow : Window
             {
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
-                    SetPreviewPlain("// 请选择 Excel/CSV 文件以生成预览。");
+                    ShowPreviewWatermark(PreviewWatermarkText);
                     _previewStatusText.Text = "等待选择文件...";
                 }, DispatcherPriority.Background);
                 return;
@@ -373,8 +378,23 @@ public partial class MainWindow : Window
         var block = _previewBlock;
         block.Inlines!.Clear();
         block.Text = text;
-        block.TextAlignment = TextAlignment.Center;
+        block.TextAlignment = TextAlignment.Left;
         block.TextWrapping = TextWrapping.Wrap;
+        block.HorizontalAlignment = HorizontalAlignment.Stretch;
+        block.VerticalAlignment = VerticalAlignment.Stretch;
+        block.Foreground = PreviewTextBrush;
+        block.Opacity = 1.0;
+        if (_previewWatermark is not null)
+            _previewWatermark.IsVisible = false;
+    }
+
+    private void ShowPreviewWatermark(string text)
+    {
+        if (_previewWatermark is null || _previewBlock is null) return;
+        _previewBlock.Inlines!.Clear();
+        _previewBlock.Text = string.Empty;
+        _previewWatermark.Text = text;
+        _previewWatermark.IsVisible = true;
     }
 
     private static string GetComboValue(ComboBox combo, string fallback = "")
@@ -540,8 +560,15 @@ public partial class MainWindow : Window
         if (_previewBlock is null) return;
         var block = _previewBlock;
         block.Inlines!.Clear();
+        block.Text = string.Empty;
         block.TextAlignment = TextAlignment.Left;
         block.TextWrapping = TextWrapping.NoWrap;
+        block.HorizontalAlignment = HorizontalAlignment.Stretch;
+        block.VerticalAlignment = VerticalAlignment.Stretch;
+        block.Foreground = PreviewTextBrush;
+        block.Opacity = 1.0;
+        if (_previewWatermark is not null)
+            _previewWatermark.IsVisible = false;
         try
         {
             var token = JToken.Parse(json);
@@ -560,6 +587,8 @@ public partial class MainWindow : Window
     private static readonly IBrush BooleanBrush = new SolidColorBrush(Color.FromRgb(255, 170, 170));
     private static readonly IBrush NullBrush = new SolidColorBrush(Color.FromRgb(150, 155, 165));
     private static readonly IBrush PunctuationBrush = new SolidColorBrush(Color.FromRgb(120, 130, 150));
+    private static readonly IBrush PreviewTextBrush = new SolidColorBrush(Color.FromRgb(233, 237, 244));
+    private static readonly IBrush WatermarkBrush = new SolidColorBrush(Color.FromRgb(140, 145, 155)) { Opacity = 0.65 };
 
     private void AppendToken(JToken token, InlineCollection inlines, int indent, bool rootArrayPerLine, bool isRootArray, bool inlineObjects)
     {

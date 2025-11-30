@@ -3,7 +3,8 @@
         x:Class="Excel2Json.App.MainWindow"
         Width="1100" Height="720"
         Title="Excel/CSV 转 JSON 工具"
-        Background="#1E1F22">
+        Background="#1E1F22"
+        DragDrop.AllowDrop="True">
   <Border Margin="16" Padding="20" Background="#25262B" CornerRadius="12">
     <DockPanel>
       <StackPanel DockPanel.Dock="Top" Spacing="6" Margin="0,0,0,12">
@@ -156,18 +157,30 @@
           </Border>
 
           <Border Grid.Row="1" Background="#1F2024" BorderBrush="#3A3B40" BorderThickness="1" CornerRadius="8" Padding="10">
-            <ScrollViewer VerticalScrollBarVisibility="Auto"
-                          HorizontalScrollBarVisibility="Auto"
-                          Background="Transparent"
-                          BorderThickness="0">
-              <TextBlock x:Name="PreviewBlock"
-                         FontFamily="Consolas, 'Cascadia Code', 'Courier New', monospace"
-                         FontSize="13"
-                         Foreground="#E9EDF4"
+            <Grid>
+              <TextBlock x:Name="PreviewWatermark"
+                         FontSize="14"
+                         Foreground="#8C8F99"
+                         Opacity="0.7"
                          TextAlignment="Center"
                          TextWrapping="Wrap"
-                         Text="// 预览区域：选择 Excel/CSV 并调整选项后，自动生成 JSON。"/>
-            </ScrollViewer>
+                         Margin="24"
+                         HorizontalAlignment="Center"
+                         VerticalAlignment="Center"
+                         Text="// 请拖拽或选择 Excel/CSV 文件以生成预览。"/>
+              <ScrollViewer VerticalScrollBarVisibility="Auto"
+                            HorizontalScrollBarVisibility="Auto"
+                            Background="Transparent"
+                            BorderThickness="0">
+                <TextBlock x:Name="PreviewBlock"
+                           FontFamily="Consolas, 'Cascadia Code', 'Courier New', monospace"
+                           FontSize="13"
+                           Foreground="#E9EDF4"
+                           TextAlignment="Left"
+                           TextWrapping="Wrap"
+                           Text=""/>
+              </ScrollViewer>
+            </Grid>
           </Border>
         </Grid>
       </Grid>
