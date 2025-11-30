@@ -560,6 +560,8 @@ public partial class MainWindow : Window
         }
     }
 
+    private static readonly string NewLine = Environment.NewLine;
+
     private static void WriteObjectStream(JObject obj, JsonTextWriter writer, JsonSerializer serializer, int depth, bool rootArrayPerLine, bool isRoot, bool inlineObjects)
     {
         writer.WriteStartObject();
@@ -585,7 +587,7 @@ public partial class MainWindow : Window
         }
         else
         {
-            writer.WriteWhitespace("\n");
+            writer.WriteWhitespace(NewLine);
             var childIndent = new string(' ', depth * 2);
             var parentIndent = new string(' ', (depth - 1) * 2);
             for (var i = 0; i < properties.Count; i++)
@@ -597,7 +599,7 @@ public partial class MainWindow : Window
                 WriteTokenStream(prop.Value, writer, serializer, depth + 1, rootArrayPerLine, isRoot: false, inlineObjects: false);
                 if (i < properties.Count - 1)
                     writer.WriteRaw(",");
-                writer.WriteWhitespace("\n");
+                writer.WriteWhitespace(NewLine);
             }
             writer.WriteWhitespace(parentIndent);
             writer.WriteEndObject();
@@ -624,7 +626,7 @@ public partial class MainWindow : Window
                 return;
             }
 
-            writer.WriteWhitespace("\n");
+            writer.WriteWhitespace(NewLine);
             var childIndent = new string(' ', depth * 2);
             var parentIndent = new string(' ', (depth - 1) * 2);
             for (var i = 0; i < array.Count; i++)
@@ -634,7 +636,7 @@ public partial class MainWindow : Window
                 serializer.Serialize(writer, array[i]);
                 if (i < array.Count - 1)
                     writer.WriteRaw(",");
-                writer.WriteWhitespace("\n");
+                writer.WriteWhitespace(NewLine);
             }
             writer.WriteWhitespace(parentIndent);
             writer.WriteEndArray();
@@ -648,7 +650,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        writer.WriteWhitespace("\n");
+        writer.WriteWhitespace(NewLine);
         var childIndentNonPerLine = new string(' ', depth * 2);
         var parentIndentNonPerLine = new string(' ', (depth - 1) * 2);
         for (var i = 0; i < array.Count; i++)
@@ -657,7 +659,7 @@ public partial class MainWindow : Window
             WriteTokenStream(array[i], writer, serializer, depth + 1, rootArrayPerLine, isRoot: false, inlineObjects: false);
             if (i < array.Count - 1)
                 writer.WriteRaw(",");
-            writer.WriteWhitespace("\n");
+            writer.WriteWhitespace(NewLine);
         }
 
         writer.WriteWhitespace(parentIndentNonPerLine);
