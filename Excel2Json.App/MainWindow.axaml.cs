@@ -25,6 +25,7 @@ namespace Excel2Json.App;
 
 public partial class MainWindow : Window
 {
+    // UI 入口窗体，负责绑定控件、处理事件与同步预览/导出。
     private readonly ExcelJsonConverter _converter = new();
     private Button _convertButton = null!;
     private Button _browseExcelButton = null!;
@@ -56,6 +57,7 @@ public partial class MainWindow : Window
 
     public MainWindow()
     {
+        // 初始化视图、绑定事件、启动首次预览。
         InitializeComponent();
         BindControls();
         BindOptionChangeHandlers();
@@ -78,6 +80,7 @@ public partial class MainWindow : Window
 
     private void BindControls()
     {
+        // 缓存必要控件引用，找不到即抛异常。
         _convertButton = this.FindControl<Button>("ConvertButton") ?? throw new InvalidOperationException("ConvertButton not found");
         _browseExcelButton = this.FindControl<Button>("BrowseExcelButton") ?? throw new InvalidOperationException("BrowseExcelButton not found");
         _browseJsonButton = this.FindControl<Button>("BrowseJsonButton") ?? throw new InvalidOperationException("BrowseJsonButton not found");
@@ -106,6 +109,7 @@ public partial class MainWindow : Window
 
     private void BindOptionChangeHandlers()
     {
+        // 所有选项变化时触发预览刷新（含下拉/勾选/输入）。
         void ListenBox(TextBox box) => box.PropertyChanged += OnOptionChanged;
         void ListenCheck(CheckBox box) => box.PropertyChanged += OnOptionChanged;
         void ListenSpin(NumericUpDown box) => box.PropertyChanged += OnOptionChanged;
@@ -132,6 +136,7 @@ public partial class MainWindow : Window
 
     private void OnOptionChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
+        // 仅在值相关属性变化时刷新。
         if (e.Property == TextBox.TextProperty
             || e.Property == ComboBox.SelectedItemProperty
             || e.Property == NumericUpDown.ValueProperty
@@ -141,6 +146,7 @@ public partial class MainWindow : Window
 
     private async void OnBrowseExcel(object? sender, RoutedEventArgs e)
     {
+        // 选择 Excel/CSV 文件后自动填充 json 输出候选。
         if (!StorageProvider.CanOpen)
         {
             await new MessageBox("不支持", "当前环境不支持文件选择。").ShowDialog(this);
@@ -175,6 +181,7 @@ public partial class MainWindow : Window
 
     private async void OnBrowseJson(object? sender, RoutedEventArgs e)
     {
+        // 选择/保存 JSON 输出路径。
         if (!StorageProvider.CanSave)
         {
             await new MessageBox("不支持", "当前环境不支持文件保存。").ShowDialog(this);
@@ -204,6 +211,7 @@ public partial class MainWindow : Window
 
     private void OnClearSelection(object? sender, RoutedEventArgs e)
     {
+        // 清空路径、Sheet 下拉、日志与预览状态。
         _excelPathBox.Text = string.Empty;
         _jsonPathBox.Text = string.Empty;
         ResetComboItems(_sheetNameBox);
@@ -222,6 +230,7 @@ public partial class MainWindow : Window
             _convertButton.IsEnabled = false;
             Log("开始转换");
 
+            // 复用预览数据写文件，确保导出/预览/复制一致。
             var options = BuildOptions();
             var preview = await _converter.PreviewAsync(options);
             var outputJson = preview.Json;
@@ -258,6 +267,7 @@ public partial class MainWindow : Window
 
     private async void OnDrop(object? sender, DragEventArgs e)
     {
+        // 支持拖拽 Excel/CSV 文件设定路径。
         if (!e.Data.Contains(DataFormats.Files)) return;
         var files = e.Data.GetFiles();
         var first = files?.FirstOrDefault();
@@ -278,6 +288,7 @@ public partial class MainWindow : Window
 
     private ConversionOptions BuildOptions(bool requireOutputPath = true)
     {
+        // 汇总 UI 选项为转换参数；必要时补齐默认输出路径。
         var headerRows = (int)Math.Max(1, Math.Round(_headerRowsBox.Value ?? 3));
 
         var excelPath = _excelPathBox.Text?.Trim() ?? string.Empty;
@@ -308,6 +319,7 @@ public partial class MainWindow : Window
 
     private void SchedulePreviewRefresh()
     {
+        // 防抖预览：取消上一次任务后启动新预览。
         _previewCts?.Cancel();
         _previewCts = new CancellationTokenSource();
         var token = _previewCts.Token;
@@ -320,7 +332,7 @@ public partial class MainWindow : Window
         try
         {
             UpdatePreviewStatus("预览中...");
-            await Task.Delay(200, token);
+            await Task.Delay(200, token); // 简易延迟，避免频繁 IO
             var excelPath = _excelPathBox.Text?.Trim() ?? string.Empty;
             if (string.IsNullOrWhiteSpace(excelPath))
             {
@@ -374,6 +386,7 @@ public partial class MainWindow : Window
 
     private void Log(string message)
     {
+        // 写入带时间戳的日志行。
         var timestamp = DateTime.Now.ToString("HH:mm:ss");
         var builder = new StringBuilder(_logBox.Text ?? string.Empty);
         builder.AppendLine($"[{timestamp}] {message}");
@@ -400,6 +413,7 @@ public partial class MainWindow : Window
 
     private async void OnCopyPreview(object? sender, RoutedEventArgs e)
     {
+        // 复制当前预览文本（与导出一致）到剪贴板。
         if (string.IsNullOrWhiteSpace(_lastPreviewText))
         {
             _previewStatusText.Text = "暂无可复制内容";
@@ -427,6 +441,7 @@ public partial class MainWindow : Window
 
     private void OnViewJson(object? sender, RoutedEventArgs e)
     {
+        // 用系统方式打开已导出的 JSON 文件。
         var path = _jsonPathBox.Text?.Trim();
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
         {
@@ -453,6 +468,7 @@ public partial class MainWindow : Window
 
     private void SetPreviewPlain(string text)
     {
+        // 回退到纯文本预览（通常是错误信息）。
         if (_previewBlock is null) return;
         var block = _previewBlock;
         block.Inlines!.Clear();
@@ -470,6 +486,7 @@ public partial class MainWindow : Window
 
     private void ShowPreviewWatermark(string text)
     {
+        // 显示提示水印并清空上次预览。
         if (_previewWatermark is null || _previewBlock is null) return;
         _previewBlock.Inlines!.Clear();
         _previewBlock.Text = string.Empty;
@@ -489,6 +506,7 @@ public partial class MainWindow : Window
 
     private void UpdateViewButtonState()
     {
+        // 根据文件存在性刷新“查看”按钮状态。
         var path = _jsonPathBox.Text?.Trim();
         _viewJsonButton.IsEnabled = !string.IsNullOrWhiteSpace(path) && File.Exists(path);
     }
@@ -503,12 +521,14 @@ public partial class MainWindow : Window
 
     private static void ResetComboItems(ComboBox combo)
     {
+        // 清空 ComboBox 数据源与选项。
         combo.ItemsSource = null;
         combo.Items?.Clear();
     }
 
     private async Task UpdateSheetComboAsync()
     {
+        // 异步获取 Sheet 列表填充下拉。
         var path = _excelPathBox.Text?.Trim();
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
         {
@@ -536,6 +556,7 @@ public partial class MainWindow : Window
 
     private void RenderHighlightedJson(string json, bool rootArrayPerLine)
     {
+        // 渲染彩色 JSON 预览；文本源即导出/复制的字符串。
         if (_previewBlock is null) return;
         var block = _previewBlock;
         block.Inlines!.Clear();
@@ -553,6 +574,7 @@ public partial class MainWindow : Window
             var token = JToken.Parse(json);
             var isRootArray = token is JArray;
             var effectiveRootArrayPerLine = rootArrayPerLine;
+            // 预览、复制、导出共用同一份 JSON；这里按勾选状态渲染换行效果。
             AppendToken(token, block.Inlines!, 0, effectiveRootArrayPerLine, isRootArray, inlineObjects: false);
             _lastPreviewText = json;
         }
@@ -575,6 +597,7 @@ public partial class MainWindow : Window
 
     private void AppendToken(JToken token, InlineCollection inlines, int indent, bool rootArrayPerLine, bool isRootArray, bool inlineObjects)
     {
+        // 递归分支不同类型，选择对应颜色。
         if (inlines is null) return;
 
         switch (token.Type)
@@ -607,6 +630,7 @@ public partial class MainWindow : Window
 
     private void AppendObject(JObject obj, InlineCollection inlines, int indent, bool rootArrayPerLine, bool isRootArray, bool inlineObjects)
     {
+        // 对象：按缩进输出键值对。
         if (obj.Count == 0)
         {
             inlines.Add(new Run("{") { Foreground = PunctuationBrush });
@@ -649,6 +673,7 @@ public partial class MainWindow : Window
 
     private void AppendArray(JArray array, InlineCollection inlines, int indent, bool rootArrayPerLine, bool isRootArray)
     {
+        // 数组：支持“每元素一行”模式。
         inlines.Add(new Run("[") { Foreground = PunctuationBrush });
         if (array.Count == 0)
         {
@@ -663,6 +688,7 @@ public partial class MainWindow : Window
             inlines.Add(new Run(new string(' ', (indent + 1) * 2)));
             if (perLine)
             {
+                // 单行数组时，每个元素紧凑渲染到一行再插入换行。
                 var temp = new TextBlock();
                 AppendToken(array[i], temp.Inlines!, indent + 1, rootArrayPerLine: false, isRootArray: false, inlineObjects: true);
                 foreach (var piece in temp.Inlines!)

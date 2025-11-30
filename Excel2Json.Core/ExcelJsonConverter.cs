@@ -22,6 +22,7 @@ public sealed class ExcelJsonConverter
 
     public async Task<ConversionResult> ConvertAsync(ConversionOptions options, CancellationToken cancellationToken = default)
     {
+        // 先构建预览（带格式化），写同样的内容到文件，确保导出与预览一致。
         var preview = BuildPreview(options, cancellationToken);
         var encoding = Encoding.GetEncoding(options.EncodingName);
 
@@ -37,6 +38,7 @@ public sealed class ExcelJsonConverter
     /// </summary>
     public Task<ConversionPreview> PreviewAsync(ConversionOptions options, CancellationToken cancellationToken = default)
     {
+        // 提供快速预览数据（不落盘），UI/CLI 可共用。
         var preview = BuildPreview(options, cancellationToken);
         return Task.FromResult(preview);
     }
@@ -47,12 +49,14 @@ public sealed class ExcelJsonConverter
     /// </summary>
     public IReadOnlyList<string> GetSheetNames(string excelPath, int headerRows = 3)
     {
+        // 读取工作簿，列出 Sheet 名以供下拉选择。
         var dataSet = LoadWorkbook(excelPath, headerRows, null);
         return dataSet.Tables.Cast<DataTable>().Select(t => t.TableName).ToList();
     }
 
     private static DataSet LoadWorkbook(string excelPath, int headerRows, string? sheetName)
     {
+        // 根据扩展名选择 Excel 或 CSV 读取，并可按名称截取单个 Sheet。
         var ext = Path.GetExtension(excelPath).ToLowerInvariant();
         DataSet dataSet;
         if (ext is ".csv")
@@ -85,6 +89,7 @@ public sealed class ExcelJsonConverter
 
     private static ExcelDataSetConfiguration CreateConfig(int headerRows)
     {
+        // 配置表头行过滤，确保行号从 headerRows 之后开始输出。
         var tableConfig = new ExcelDataTableConfiguration
         {
             UseHeaderRow = true,
@@ -100,6 +105,7 @@ public sealed class ExcelJsonConverter
 
     private static string BuildJson(DataSet dataSet, ConversionOptions opt, out int maxDepth)
     {
+        // 根据配置构建对象或 Sheet 包装；过滤空表/前缀。
         var validSheets = new List<DataTable>();
         foreach (DataTable sheet in dataSet.Tables)
         {
@@ -112,10 +118,12 @@ public sealed class ExcelJsonConverter
         object? data;
         if (!opt.ForceSheetName && validSheets.Count == 1)
         {
+            // 单 Sheet 且不强制包装：直接输出该 Sheet。
             data = ConvertSheet(validSheets[0], opt);
         }
         else
         {
+            // 多 Sheet 或强制包装：以 Sheet 名为键。
             data = validSheets.ToDictionary(sheet => sheet.TableName, sheet => ConvertSheet(sheet, opt));
         }
 
@@ -133,6 +141,7 @@ public sealed class ExcelJsonConverter
 
     private static object ConvertSheet(DataTable sheet, ConversionOptions opt)
     {
+        // 输出数组或字典（首列为键）两种模式。
         return opt.ExportArray
             ? ConvertSheetToArray(sheet, opt)
             : ConvertSheetToDict(sheet, opt);
@@ -140,6 +149,7 @@ public sealed class ExcelJsonConverter
 
     private static List<object?> ConvertSheetToArray(DataTable sheet, ConversionOptions opt)
     {
+        // 将每行转成对象，放入数组。
         var values = new List<object?>();
         var firstDataRow = Math.Max(opt.HeaderRows - 1, 0);
         for (var i = firstDataRow; i < sheet.Rows.Count; i++)
@@ -152,6 +162,7 @@ public sealed class ExcelJsonConverter
 
     private static Dictionary<string, object?> ConvertSheetToDict(DataTable sheet, ConversionOptions opt)
     {
+        // 以首列或自动编号为键，构成字典。
         var map = new Dictionary<string, object?>();
         var firstDataRow = Math.Max(opt.HeaderRows - 1, 0);
         for (var i = firstDataRow; i < sheet.Rows.Count; i++)
@@ -169,6 +180,7 @@ public sealed class ExcelJsonConverter
 
     private static Dictionary<string, object?> ConvertRowToDict(DataTable sheet, DataRow row, ConversionOptions opt, int firstDataRow)
     {
+        // 按列遍历一行，应用前缀过滤、大小写转换、类型归一化。
         var rowData = new Dictionary<string, object?>();
         var colIndex = 0;
         foreach (DataColumn column in sheet.Columns)
@@ -193,6 +205,7 @@ public sealed class ExcelJsonConverter
 
     private static object? NormalizeCell(object? value, DataTable sheet, DataColumn column, DataRow row, int firstDataRow, ConversionOptions opt)
     {
+        // 空值回落默认；整数化；可解析单元格 JSON；可强制转字符串。
         if (value == null || value is DBNull)
         {
             value = GetColumnDefault(sheet, column, firstDataRow);
@@ -228,6 +241,7 @@ public sealed class ExcelJsonConverter
 
     private static object GetColumnDefault(DataTable sheet, DataColumn column, int firstDataRow)
     {
+        // 找到首个非空同列值的默认类型，否则空串。
         for (var i = firstDataRow; i < sheet.Rows.Count; i++)
         {
             var value = sheet.Rows[i][column];
@@ -245,6 +259,7 @@ public sealed class ExcelJsonConverter
 
     private static ConversionPreview BuildPreview(ConversionOptions options, CancellationToken cancellationToken)
     {
+        // 构建预览并计算行/深度；预览 JSON 已按选项格式化。
         cancellationToken.ThrowIfCancellationRequested();
         var dataSet = LoadWorkbook(options.ExcelPath, options.HeaderRows, options.SheetName);
 
@@ -263,6 +278,7 @@ public sealed class ExcelJsonConverter
             var token = JToken.Parse(json);
             var rootArrayPerLine = singleLineArray;
 
+            // 统一格式化出口：预览/复制/导出共用，singleLineArray 作用于所有数组层级。
             using var sw = new StringWriter();
             using var writer = new JsonTextWriter(sw) { Formatting = Formatting.None };
             var serializer = JsonSerializer.Create(new JsonSerializerSettings { DateFormatString = dateFormat });
@@ -346,6 +362,7 @@ public sealed class ExcelJsonConverter
             return;
         }
 
+        // perLine=true 时，数组每个元素单独一行（含嵌套数组），便于逐行对照。
         var perLine = rootArrayPerLine;
         writer.Formatting = perLine ? Formatting.None : Formatting.Indented;
 
@@ -399,6 +416,7 @@ public sealed class ExcelJsonConverter
 
     private static DataSet LoadCsv(string path, int headerRows)
     {
+        // 按表头行读取 CSV，构建 DataTable。
         var dataSet = new DataSet();
         var table = new DataTable(Path.GetFileNameWithoutExtension(path) ?? "csv");
         var rows = new List<string[]>();
@@ -448,6 +466,7 @@ public sealed class ExcelJsonConverter
 
     private static int CalculateDepth(JToken token)
     {
+        // 计算 JSON 最大嵌套深度，便于 UI 展示。
         if (token is not JContainer container || !container.HasValues)
             return 1;
 
