@@ -239,7 +239,7 @@ public partial class MainWindow : Window
             Directory.CreateDirectory(Path.GetDirectoryName(options.OutputPath) ?? ".");
             await File.WriteAllTextAsync(options.OutputPath, outputJson, encoding, CancellationToken.None);
 
-            RenderHighlightedJson(outputJson, options.SingleLineArray);
+            RenderHighlightedJson(outputJson, preview.SingleLineArrayUsed);
             _previewStatusText.Text = $"已导出：{options.OutputPath}";
             Log($"完成，Sheet: {preview.Sheets}，行: {preview.Rows}");
             SchedulePreviewRefresh();
@@ -360,7 +360,7 @@ public partial class MainWindow : Window
             token.ThrowIfCancellationRequested();
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
-                RenderHighlightedJson(formatted, options.SingleLineArray);
+                RenderHighlightedJson(formatted, preview.SingleLineArrayUsed);
                 _previewStatusText.Text = $"预览就绪：Sheet {preview.Sheets}，行 {preview.Rows}";
             }, DispatcherPriority.Background);
         }
