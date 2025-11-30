@@ -29,6 +29,7 @@ public partial class MainWindow : Window
     private Button _browseExcelButton = null!;
     private Button _browseJsonButton = null!;
     private Button _clearSelectionButton = null!;
+    private Button _copyPreviewButton = null!;
     private TextBox _excelPathBox = null!;
     private TextBox _jsonPathBox = null!;
     private NumericUpDown _headerRowsBox = null!;
@@ -50,6 +51,7 @@ public partial class MainWindow : Window
     private CancellationTokenSource? _previewCts;
     private const string DefaultSheetPlaceholder = "全部 Sheet（默认）";
     private const string PreviewWatermarkText = "// 请拖拽或选择 Excel/CSV 文件以生成预览。";
+    private string _lastPreviewText = string.Empty;
 
     public MainWindow()
     {
@@ -63,6 +65,7 @@ public partial class MainWindow : Window
         _browseExcelButton.Click += OnBrowseExcel;
         _browseJsonButton.Click += OnBrowseJson;
         _clearSelectionButton.Click += OnClearSelection;
+        _copyPreviewButton.Click += OnCopyPreview;
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
         AddHandler(DragDrop.DropEvent, OnDrop);
 
@@ -77,6 +80,7 @@ public partial class MainWindow : Window
         _browseExcelButton = this.FindControl<Button>("BrowseExcelButton") ?? throw new InvalidOperationException("BrowseExcelButton not found");
         _browseJsonButton = this.FindControl<Button>("BrowseJsonButton") ?? throw new InvalidOperationException("BrowseJsonButton not found");
         _clearSelectionButton = this.FindControl<Button>("ClearSelectionButton") ?? throw new InvalidOperationException("ClearSelectionButton not found");
+        _copyPreviewButton = this.FindControl<Button>("CopyPreviewButton") ?? throw new InvalidOperationException("CopyPreviewButton not found");
         _excelPathBox = this.FindControl<TextBox>("ExcelPathBox") ?? throw new InvalidOperationException("ExcelPathBox not found");
         _jsonPathBox = this.FindControl<TextBox>("JsonPathBox") ?? throw new InvalidOperationException("JsonPathBox not found");
         _headerRowsBox = this.FindControl<NumericUpDown>("HeaderRowsBox") ?? throw new InvalidOperationException("HeaderRowsBox not found");
@@ -224,6 +228,7 @@ public partial class MainWindow : Window
             Directory.CreateDirectory(Path.GetDirectoryName(options.OutputPath) ?? ".");
             await File.WriteAllTextAsync(options.OutputPath, outputJson, encoding, CancellationToken.None);
 
+            RenderPreviewText(outputJson);
             _statusText.Text = $"完成：{options.OutputPath}";
             Log($"完成，Sheet: {preview.Sheets}，行: {preview.Rows}");
             SchedulePreviewRefresh();
@@ -334,16 +339,17 @@ public partial class MainWindow : Window
             }
 
             var options = BuildOptions(requireOutputPath: false);
-        var preview = await _converter.PreviewAsync(options, token);
-
-        token.ThrowIfCancellationRequested();
-        await Dispatcher.UIThread.InvokeAsync(() =>
-        {
+            var preview = await _converter.PreviewAsync(options, token);
             var rootArrayPerLine = options.SingleLineArray && IsRootArray(preview.Json);
-            RenderHighlightedJson(preview.Json, rootArrayPerLine);
-            _previewStatusText.Text = $"预览就绪：Sheet {preview.Sheets}，行 {preview.Rows}";
-        }, DispatcherPriority.Background);
-    }
+            var formatted = BuildFormattedJson(preview.Json, rootArrayPerLine, options.DateFormat);
+
+            token.ThrowIfCancellationRequested();
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                RenderPreviewText(formatted);
+                _previewStatusText.Text = $"预览就绪：Sheet {preview.Sheets}，行 {preview.Rows}";
+            }, DispatcherPriority.Background);
+        }
         catch (OperationCanceledException)
         {
             // ignore
@@ -354,6 +360,7 @@ public partial class MainWindow : Window
             {
                 SetPreviewPlain($"// 预览失败：{ex.Message}");
                 _previewStatusText.Text = "预览失败";
+                _lastPreviewText = string.Empty;
             }, DispatcherPriority.Background);
         }
     }
@@ -372,6 +379,50 @@ public partial class MainWindow : Window
         _logBox.CaretIndex = _logBox.Text.Length;
     }
 
+    private void RenderPreviewText(string text)
+    {
+        if (_previewBlock is null) return;
+        var block = _previewBlock;
+        block.Inlines!.Clear();
+        block.Text = text;
+        block.TextAlignment = TextAlignment.Left;
+        block.TextWrapping = TextWrapping.Wrap;
+        block.HorizontalAlignment = HorizontalAlignment.Stretch;
+        block.VerticalAlignment = VerticalAlignment.Stretch;
+        block.Foreground = PreviewTextBrush;
+        block.Opacity = 1.0;
+        _lastPreviewText = text;
+        if (_previewWatermark is not null)
+            _previewWatermark.IsVisible = false;
+    }
+
+    private async void OnCopyPreview(object? sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(_lastPreviewText))
+        {
+            _previewStatusText.Text = "暂无可复制内容";
+            return;
+        }
+
+        try
+        {
+            var clipboard = Clipboard;
+            if (clipboard is not null)
+            {
+                await clipboard.SetTextAsync(_lastPreviewText);
+                _previewStatusText.Text = "已复制到剪切板";
+            }
+            else
+            {
+                _previewStatusText.Text = "无法访问剪切板";
+            }
+        }
+        catch (Exception ex)
+        {
+            _previewStatusText.Text = $"复制失败：{ex.Message}";
+        }
+    }
+
     private void SetPreviewPlain(string text)
     {
         if (_previewBlock is null) return;
@@ -384,6 +435,7 @@ public partial class MainWindow : Window
         block.VerticalAlignment = VerticalAlignment.Stretch;
         block.Foreground = PreviewTextBrush;
         block.Opacity = 1.0;
+        _lastPreviewText = text;
         if (_previewWatermark is not null)
             _previewWatermark.IsVisible = false;
     }
@@ -395,6 +447,7 @@ public partial class MainWindow : Window
         _previewBlock.Text = string.Empty;
         _previewWatermark.Text = text;
         _previewWatermark.IsVisible = true;
+        _lastPreviewText = string.Empty;
     }
 
     private static string GetComboValue(ComboBox combo, string fallback = "")
@@ -451,15 +504,15 @@ public partial class MainWindow : Window
         }
     }
 
-    private static void WriteTokenStream(JToken token, JsonTextWriter writer, JsonSerializer serializer, int depth, bool rootArrayPerLine, bool isRoot = false)
+    private static void WriteTokenStream(JToken token, JsonTextWriter writer, JsonSerializer serializer, int depth, bool rootArrayPerLine, bool isRoot = false, bool inlineObjects = false)
     {
         switch (token.Type)
         {
             case JTokenType.Object:
-                WriteObjectStream((JObject)token, writer, serializer, depth, rootArrayPerLine, isRoot);
+                WriteObjectStream((JObject)token, writer, serializer, depth, rootArrayPerLine, isRoot, inlineObjects);
                 break;
             case JTokenType.Array:
-                WriteArrayStream((JArray)token, writer, serializer, depth, rootArrayPerLine, isRoot);
+                WriteArrayStream((JArray)token, writer, serializer, depth, rootArrayPerLine, isRoot, inlineObjects);
                 break;
             default:
                 serializer.Serialize(writer, token is JValue jValue ? jValue.Value : token.ToString());
@@ -467,7 +520,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private static void WriteObjectStream(JObject obj, JsonTextWriter writer, JsonSerializer serializer, int depth, bool rootArrayPerLine, bool isRoot)
+    private static void WriteObjectStream(JObject obj, JsonTextWriter writer, JsonSerializer serializer, int depth, bool rootArrayPerLine, bool isRoot, bool inlineObjects)
     {
         writer.WriteStartObject();
         var properties = obj.Properties().ToList();
@@ -477,25 +530,48 @@ public partial class MainWindow : Window
             return;
         }
 
-        writer.WriteWhitespace("\n");
-        var childIndent = new string(' ', depth * 2);
-        var parentIndent = new string(' ', (depth - 1) * 2);
-        for (var i = 0; i < properties.Count; i++)
+        if (inlineObjects)
         {
-            var prop = properties[i];
-            writer.WriteWhitespace(childIndent);
-            writer.WritePropertyName(prop.Name);
-            WriteTokenStream(prop.Value, writer, serializer, depth + 1, rootArrayPerLine, isRoot: false);
-            if (i < properties.Count - 1)
-                writer.WriteRaw(",");
-            writer.WriteWhitespace("\n");
+            for (var i = 0; i < properties.Count; i++)
+            {
+                var prop = properties[i];
+                if (i > 0)
+                    writer.WriteRaw(", ");
+                writer.WritePropertyName(prop.Name);
+                writer.WriteRaw(": ");
+                WriteTokenStream(prop.Value, writer, serializer, depth + 1, rootArrayPerLine, isRoot: false, inlineObjects: true);
+            }
+            writer.WriteEndObject();
         }
-        writer.WriteWhitespace(parentIndent);
-        writer.WriteEndObject();
+        else
+        {
+            writer.WriteWhitespace("\n");
+            var childIndent = new string(' ', depth * 2);
+            var parentIndent = new string(' ', (depth - 1) * 2);
+            for (var i = 0; i < properties.Count; i++)
+            {
+                var prop = properties[i];
+                writer.WriteWhitespace(childIndent);
+                writer.WritePropertyName(prop.Name);
+                writer.WriteRaw(": ");
+                WriteTokenStream(prop.Value, writer, serializer, depth + 1, rootArrayPerLine, isRoot: false, inlineObjects: false);
+                if (i < properties.Count - 1)
+                    writer.WriteRaw(",");
+                writer.WriteWhitespace("\n");
+            }
+            writer.WriteWhitespace(parentIndent);
+            writer.WriteEndObject();
+        }
     }
 
-    private static void WriteArrayStream(JArray array, JsonTextWriter writer, JsonSerializer serializer, int depth, bool rootArrayPerLine, bool isRoot)
+    private static void WriteArrayStream(JArray array, JsonTextWriter writer, JsonSerializer serializer, int depth, bool rootArrayPerLine, bool isRoot, bool inlineObjects)
     {
+        if (inlineObjects)
+        {
+            serializer.Serialize(writer, array);
+            return;
+        }
+
         var perLine = rootArrayPerLine && isRoot;
         writer.Formatting = perLine ? Formatting.None : Formatting.Indented;
 
@@ -514,8 +590,8 @@ public partial class MainWindow : Window
             for (var i = 0; i < array.Count; i++)
             {
                 writer.WriteWhitespace(childIndent);
-                // 根数组每项单行：紧凑序列化每个元素
-                serializer.Serialize(writer, array[i]);
+                // 根数组每项单行：紧凑序列化每个元素，内部对象/数组保持单行
+                WriteTokenStream(array[i], writer, serializer, depth + 1, rootArrayPerLine: false, isRoot: false, inlineObjects: true);
                 if (i < array.Count - 1)
                     writer.WriteRaw(",");
                 writer.WriteWhitespace("\n");
@@ -525,7 +601,27 @@ public partial class MainWindow : Window
             return;
         }
 
-        serializer.Serialize(writer, array);
+        writer.WriteStartArray();
+        if (array.Count == 0)
+        {
+            writer.WriteEndArray();
+            return;
+        }
+
+        writer.WriteWhitespace("\n");
+        var childIndentNonPerLine = new string(' ', depth * 2);
+        var parentIndentNonPerLine = new string(' ', (depth - 1) * 2);
+        for (var i = 0; i < array.Count; i++)
+        {
+            writer.WriteWhitespace(childIndentNonPerLine);
+            WriteTokenStream(array[i], writer, serializer, depth + 1, rootArrayPerLine, isRoot: false, inlineObjects: false);
+            if (i < array.Count - 1)
+                writer.WriteRaw(",");
+            writer.WriteWhitespace("\n");
+        }
+
+        writer.WriteWhitespace(parentIndentNonPerLine);
+        writer.WriteEndArray();
     }
 
     private async Task UpdateSheetComboAsync()
@@ -573,11 +669,15 @@ public partial class MainWindow : Window
         {
             var token = JToken.Parse(json);
             var isRootArray = token is JArray;
-            AppendToken(token, block.Inlines!, 0, rootArrayPerLine && isRootArray, isRootArray, inlineObjects: false);
+            var effectiveRootArrayPerLine = rootArrayPerLine && isRootArray;
+            var copyText = BuildFormattedJson(json, effectiveRootArrayPerLine, GetComboValue(_dateFormatBox, "yyyy-MM-dd HH:mm:ss"));
+            AppendToken(token, block.Inlines!, 0, effectiveRootArrayPerLine, isRootArray, inlineObjects: false);
+            _lastPreviewText = copyText;
         }
         catch
         {
             block.Text = json;
+            _lastPreviewText = json;
         }
     }
 

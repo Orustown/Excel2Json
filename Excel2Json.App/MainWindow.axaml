@@ -151,6 +151,14 @@
               <StackPanel Orientation="Horizontal" Spacing="8">
                 <TextBlock Text="JSON 预览" Foreground="#E9EDF4" FontSize="18" FontWeight="SemiBold"/>
                 <TextBlock x:Name="PreviewStatusText" Foreground="#8AB4FF" VerticalAlignment="Center" Text="等待选择文件..." />
+                <Button x:Name="CopyPreviewButton"
+                        Content="复制预览"
+                        MinWidth="90"
+                        Padding="12,6"
+                        Background="#2F3035"
+                        Foreground="#E9EDF4"
+                        BorderBrush="#3A3B40"
+                        ToolTip.Tip="将当前预览内容复制到剪贴板"/>
               </StackPanel>
               <TextBlock Foreground="#9DA5B4" Text="右侧预览与导出结果保持一致，含缩进与空白；颜色区分键与不同类型的值。"/>
             </StackPanel>
