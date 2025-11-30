@@ -116,13 +116,7 @@ public sealed class ExcelJsonConverter
         }
         else
         {
-            var map = new Dictionary<string, object?>();
-            foreach (var sheet in validSheets)
-            {
-                map[sheet.TableName] = ConvertSheet(sheet, opt);
-            }
-
-            data = map;
+            data = validSheets.ToDictionary(sheet => sheet.TableName, sheet => ConvertSheet(sheet, opt));
         }
 
         var token = data is JToken jToken ? jToken : JToken.FromObject(data ?? new object());
@@ -258,7 +252,149 @@ public sealed class ExcelJsonConverter
         var json = BuildJson(dataSet, options, out var maxDepth);
         var rows = dataSet.Tables.Cast<DataTable>().Sum(t => Math.Max(0, t.Rows.Count - Math.Max(options.HeaderRows - 1, 0)));
 
-        return new ConversionPreview(json, dataSet.Tables.Count, rows, maxDepth);
+        var formatted = FormatJson(json, options.SingleLineArray, options.DateFormat);
+        return new ConversionPreview(formatted, dataSet.Tables.Count, rows, maxDepth);
+    }
+
+    public static string FormatJson(string json, bool singleLineArray, string dateFormat)
+    {
+        try
+        {
+            var token = JToken.Parse(json);
+            var rootArrayPerLine = singleLineArray;
+
+            using var sw = new StringWriter();
+            using var writer = new JsonTextWriter(sw) { Formatting = Formatting.None };
+            var serializer = JsonSerializer.Create(new JsonSerializerSettings { DateFormatString = dateFormat });
+            WriteFormattedToken(token, writer, serializer, depth: 1, rootArrayPerLine, isRoot: true, inlineObjects: false);
+            writer.Flush();
+            return sw.ToString();
+        }
+        catch
+        {
+            return json;
+        }
+    }
+
+    private static readonly string NewLine = Environment.NewLine;
+
+    private static void WriteFormattedToken(JToken token, JsonTextWriter writer, JsonSerializer serializer, int depth, bool rootArrayPerLine, bool isRoot = false, bool inlineObjects = false)
+    {
+        switch (token.Type)
+        {
+            case JTokenType.Object:
+                WriteFormattedObject((JObject)token, writer, serializer, depth, rootArrayPerLine, isRoot, inlineObjects);
+                break;
+            case JTokenType.Array:
+                WriteFormattedArray((JArray)token, writer, serializer, depth, rootArrayPerLine, isRoot, inlineObjects);
+                break;
+            default:
+                serializer.Serialize(writer, token is JValue jValue ? jValue.Value : token.ToString());
+                break;
+        }
+    }
+
+    private static void WriteFormattedObject(JObject obj, JsonTextWriter writer, JsonSerializer serializer, int depth, bool rootArrayPerLine, bool isRoot, bool inlineObjects)
+    {
+        writer.WriteStartObject();
+        var properties = obj.Properties().ToList();
+        if (properties.Count == 0)
+        {
+            writer.WriteEndObject();
+            return;
+        }
+
+        if (inlineObjects)
+        {
+            for (var i = 0; i < properties.Count; i++)
+            {
+                var prop = properties[i];
+                if (i > 0)
+                    writer.WriteRaw(", ");
+                writer.WritePropertyName(prop.Name);
+                writer.WriteRaw(": ");
+                WriteFormattedToken(prop.Value, writer, serializer, depth + 1, rootArrayPerLine, isRoot: false, inlineObjects: true);
+            }
+            writer.WriteEndObject();
+        }
+        else
+        {
+            writer.WriteWhitespace(NewLine);
+            var childIndent = new string(' ', depth * 2);
+            var parentIndent = new string(' ', (depth - 1) * 2);
+            for (var i = 0; i < properties.Count; i++)
+            {
+                var prop = properties[i];
+                writer.WriteWhitespace(childIndent);
+                writer.WritePropertyName(prop.Name);
+                writer.WriteRaw(": ");
+                WriteFormattedToken(prop.Value, writer, serializer, depth + 1, rootArrayPerLine, isRoot: false, inlineObjects: false);
+                if (i < properties.Count - 1)
+                    writer.WriteRaw(",");
+                writer.WriteWhitespace(NewLine);
+            }
+            writer.WriteWhitespace(parentIndent);
+            writer.WriteEndObject();
+        }
+    }
+
+    private static void WriteFormattedArray(JArray array, JsonTextWriter writer, JsonSerializer serializer, int depth, bool rootArrayPerLine, bool isRoot, bool inlineObjects)
+    {
+        if (inlineObjects)
+        {
+            serializer.Serialize(writer, array);
+            return;
+        }
+
+        var perLine = rootArrayPerLine;
+        writer.Formatting = perLine ? Formatting.None : Formatting.Indented;
+
+        if (perLine)
+        {
+            writer.WriteStartArray();
+            if (array.Count == 0)
+            {
+                writer.WriteEndArray();
+                return;
+            }
+
+            writer.WriteWhitespace(NewLine);
+            var childIndent = new string(' ', depth * 2);
+            var parentIndent = new string(' ', (depth - 1) * 2);
+            for (var i = 0; i < array.Count; i++)
+            {
+                writer.WriteWhitespace(childIndent);
+                serializer.Serialize(writer, array[i]);
+                if (i < array.Count - 1)
+                    writer.WriteRaw(",");
+                writer.WriteWhitespace(NewLine);
+            }
+            writer.WriteWhitespace(parentIndent);
+            writer.WriteEndArray();
+            return;
+        }
+
+        writer.WriteStartArray();
+        if (array.Count == 0)
+        {
+            writer.WriteEndArray();
+            return;
+        }
+
+        writer.WriteWhitespace(NewLine);
+        var childIndentNonPerLine = new string(' ', depth * 2);
+        var parentIndentNonPerLine = new string(' ', (depth - 1) * 2);
+        for (var i = 0; i < array.Count; i++)
+        {
+            writer.WriteWhitespace(childIndentNonPerLine);
+            WriteFormattedToken(array[i], writer, serializer, depth + 1, rootArrayPerLine, isRoot: false, inlineObjects: false);
+            if (i < array.Count - 1)
+                writer.WriteRaw(",");
+            writer.WriteWhitespace(NewLine);
+        }
+
+        writer.WriteWhitespace(parentIndentNonPerLine);
+        writer.WriteEndArray();
     }
 
     private static DataSet LoadCsv(string path, int headerRows)

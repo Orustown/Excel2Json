@@ -45,7 +45,6 @@ public partial class MainWindow : Window
     private CheckBox _cellJsonBox = null!;
     private CheckBox _allStringBox = null!;
     private CheckBox _singleLineArrayBox = null!;
-    private TextBlock _statusText = null!;
     private TextBox _logBox = null!;
     private TextBlock _previewStatusText = null!;
     private TextBlock _previewBlock = null!;
@@ -98,7 +97,6 @@ public partial class MainWindow : Window
         _cellJsonBox = this.FindControl<CheckBox>("CellJsonBox") ?? throw new InvalidOperationException("CellJsonBox not found");
         _allStringBox = this.FindControl<CheckBox>("AllStringBox") ?? throw new InvalidOperationException("AllStringBox not found");
         _singleLineArrayBox = this.FindControl<CheckBox>("SingleLineArrayBox") ?? throw new InvalidOperationException("SingleLineArrayBox not found");
-        _statusText = this.FindControl<TextBlock>("StatusText") ?? throw new InvalidOperationException("StatusText not found");
         _logBox = this.FindControl<TextBox>("LogBox") ?? throw new InvalidOperationException("LogBox not found");
         _previewStatusText = this.FindControl<TextBlock>("PreviewStatusText") ?? throw new InvalidOperationException("PreviewStatusText not found");
         _previewBlock = this.FindControl<TextBlock>("PreviewBlock") ?? throw new InvalidOperationException("PreviewBlock not found");
@@ -221,28 +219,25 @@ public partial class MainWindow : Window
     {
         try
         {
-            _statusText.Text = "正在导出...";
             _convertButton.IsEnabled = false;
             Log("开始转换");
 
             var options = BuildOptions();
             var preview = await _converter.PreviewAsync(options);
-            var rootArrayPerLine = options.SingleLineArray && IsRootArray(preview.Json);
-            var outputJson = BuildFormattedJson(preview.Json, rootArrayPerLine, options.DateFormat);
+            var outputJson = preview.Json;
 
             var encoding = Encoding.GetEncoding(options.EncodingName);
             Directory.CreateDirectory(Path.GetDirectoryName(options.OutputPath) ?? ".");
             await File.WriteAllTextAsync(options.OutputPath, outputJson, encoding, CancellationToken.None);
 
-            RenderPreviewText(outputJson);
-            _statusText.Text = $"完成：{options.OutputPath}";
+            RenderHighlightedJson(outputJson, options.SingleLineArray);
+            _previewStatusText.Text = $"已导出：{options.OutputPath}";
             Log($"完成，Sheet: {preview.Sheets}，行: {preview.Rows}");
             SchedulePreviewRefresh();
             UpdateViewButtonState();
         }
         catch (Exception ex)
         {
-            _statusText.Text = "失败";
             Log($"错误：{ex.Message}");
             await new MessageBox("导出失败", ex.Message).ShowDialog(this);
         }
@@ -348,13 +343,12 @@ public partial class MainWindow : Window
 
             var options = BuildOptions(requireOutputPath: false);
             var preview = await _converter.PreviewAsync(options, token);
-            var rootArrayPerLine = options.SingleLineArray && IsRootArray(preview.Json);
-            var formatted = BuildFormattedJson(preview.Json, rootArrayPerLine, options.DateFormat);
+            var formatted = preview.Json;
 
             token.ThrowIfCancellationRequested();
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
-                RenderPreviewText(formatted);
+                RenderHighlightedJson(formatted, options.SingleLineArray);
                 _previewStatusText.Text = $"预览就绪：Sheet {preview.Sheets}，行 {preview.Rows}";
             }, DispatcherPriority.Background);
         }
@@ -513,159 +507,6 @@ public partial class MainWindow : Window
         combo.Items?.Clear();
     }
 
-    private static bool IsRootArray(string json)
-    {
-        try
-        {
-            var token = JToken.Parse(json);
-            return token is JArray;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static string BuildFormattedJson(string json, bool rootArrayPerLine, string dateFormat)
-    {
-        try
-        {
-            var token = JToken.Parse(json);
-            using var sw = new StringWriter();
-            using var writer = new JsonTextWriter(sw) { Formatting = Formatting.None };
-            var serializer = JsonSerializer.Create(new JsonSerializerSettings { DateFormatString = dateFormat });
-            WriteTokenStream(token, writer, serializer, depth: 1, rootArrayPerLine, isRoot: true);
-            writer.Flush();
-            return sw.ToString();
-        }
-        catch
-        {
-            return json;
-        }
-    }
-
-    private static void WriteTokenStream(JToken token, JsonTextWriter writer, JsonSerializer serializer, int depth, bool rootArrayPerLine, bool isRoot = false, bool inlineObjects = false)
-    {
-        switch (token.Type)
-        {
-            case JTokenType.Object:
-                WriteObjectStream((JObject)token, writer, serializer, depth, rootArrayPerLine, isRoot, inlineObjects);
-                break;
-            case JTokenType.Array:
-                WriteArrayStream((JArray)token, writer, serializer, depth, rootArrayPerLine, isRoot, inlineObjects);
-                break;
-            default:
-                serializer.Serialize(writer, token is JValue jValue ? jValue.Value : token.ToString());
-                break;
-        }
-    }
-
-    private static readonly string NewLine = Environment.NewLine;
-
-    private static void WriteObjectStream(JObject obj, JsonTextWriter writer, JsonSerializer serializer, int depth, bool rootArrayPerLine, bool isRoot, bool inlineObjects)
-    {
-        writer.WriteStartObject();
-        var properties = obj.Properties().ToList();
-        if (properties.Count == 0)
-        {
-            writer.WriteEndObject();
-            return;
-        }
-
-        if (inlineObjects)
-        {
-            for (var i = 0; i < properties.Count; i++)
-            {
-                var prop = properties[i];
-                if (i > 0)
-                    writer.WriteRaw(", ");
-                writer.WritePropertyName(prop.Name);
-                writer.WriteRaw(": ");
-                WriteTokenStream(prop.Value, writer, serializer, depth + 1, rootArrayPerLine, isRoot: false, inlineObjects: true);
-            }
-            writer.WriteEndObject();
-        }
-        else
-        {
-            writer.WriteWhitespace(NewLine);
-            var childIndent = new string(' ', depth * 2);
-            var parentIndent = new string(' ', (depth - 1) * 2);
-            for (var i = 0; i < properties.Count; i++)
-            {
-                var prop = properties[i];
-                writer.WriteWhitespace(childIndent);
-                writer.WritePropertyName(prop.Name);
-                writer.WriteRaw(": ");
-                WriteTokenStream(prop.Value, writer, serializer, depth + 1, rootArrayPerLine, isRoot: false, inlineObjects: false);
-                if (i < properties.Count - 1)
-                    writer.WriteRaw(",");
-                writer.WriteWhitespace(NewLine);
-            }
-            writer.WriteWhitespace(parentIndent);
-            writer.WriteEndObject();
-        }
-    }
-
-    private static void WriteArrayStream(JArray array, JsonTextWriter writer, JsonSerializer serializer, int depth, bool rootArrayPerLine, bool isRoot, bool inlineObjects)
-    {
-        if (inlineObjects)
-        {
-            serializer.Serialize(writer, array);
-            return;
-        }
-
-        var perLine = rootArrayPerLine && isRoot;
-        writer.Formatting = perLine ? Formatting.None : Formatting.Indented;
-
-        if (perLine)
-        {
-            writer.WriteStartArray();
-            if (array.Count == 0)
-            {
-                writer.WriteEndArray();
-                return;
-            }
-
-            writer.WriteWhitespace(NewLine);
-            var childIndent = new string(' ', depth * 2);
-            var parentIndent = new string(' ', (depth - 1) * 2);
-            for (var i = 0; i < array.Count; i++)
-            {
-                writer.WriteWhitespace(childIndent);
-                // 根数组每项单行：直接紧凑序列化每个元素
-                serializer.Serialize(writer, array[i]);
-                if (i < array.Count - 1)
-                    writer.WriteRaw(",");
-                writer.WriteWhitespace(NewLine);
-            }
-            writer.WriteWhitespace(parentIndent);
-            writer.WriteEndArray();
-            return;
-        }
-
-        writer.WriteStartArray();
-        if (array.Count == 0)
-        {
-            writer.WriteEndArray();
-            return;
-        }
-
-        writer.WriteWhitespace(NewLine);
-        var childIndentNonPerLine = new string(' ', depth * 2);
-        var parentIndentNonPerLine = new string(' ', (depth - 1) * 2);
-        for (var i = 0; i < array.Count; i++)
-        {
-            writer.WriteWhitespace(childIndentNonPerLine);
-            WriteTokenStream(array[i], writer, serializer, depth + 1, rootArrayPerLine, isRoot: false, inlineObjects: false);
-            if (i < array.Count - 1)
-                writer.WriteRaw(",");
-            writer.WriteWhitespace(NewLine);
-        }
-
-        writer.WriteWhitespace(parentIndentNonPerLine);
-        writer.WriteEndArray();
-    }
-
     private async Task UpdateSheetComboAsync()
     {
         var path = _excelPathBox.Text?.Trim();
@@ -711,10 +552,9 @@ public partial class MainWindow : Window
         {
             var token = JToken.Parse(json);
             var isRootArray = token is JArray;
-            var effectiveRootArrayPerLine = rootArrayPerLine && isRootArray;
-            var copyText = BuildFormattedJson(json, effectiveRootArrayPerLine, GetComboValue(_dateFormatBox, "yyyy-MM-dd HH:mm:ss"));
+            var effectiveRootArrayPerLine = rootArrayPerLine;
             AppendToken(token, block.Inlines!, 0, effectiveRootArrayPerLine, isRootArray, inlineObjects: false);
-            _lastPreviewText = copyText;
+            _lastPreviewText = json;
         }
         catch
         {
@@ -731,6 +571,7 @@ public partial class MainWindow : Window
     private static readonly IBrush PunctuationBrush = new SolidColorBrush(Color.FromRgb(120, 130, 150));
     private static readonly IBrush PreviewTextBrush = new SolidColorBrush(Color.FromRgb(233, 237, 244));
     private static readonly IBrush WatermarkBrush = new SolidColorBrush(Color.FromRgb(140, 145, 155)) { Opacity = 0.65 };
+    private static readonly string NewLine = Environment.NewLine;
 
     private void AppendToken(JToken token, InlineCollection inlines, int indent, bool rootArrayPerLine, bool isRootArray, bool inlineObjects)
     {
@@ -790,7 +631,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        inlines.Add(new Run("\n"));
+        inlines.Add(new Run(NewLine));
         for (var i = 0; i < properties.Count; i++)
         {
             var prop = properties[i];
@@ -800,7 +641,7 @@ public partial class MainWindow : Window
             AppendToken(prop.Value, inlines, indent + 1, rootArrayPerLine, isRootArray: false, inlineObjects: false);
             if (i < properties.Count - 1)
                 inlines.Add(new Run(",") { Foreground = PunctuationBrush });
-            inlines.Add(new Run("\n"));
+            inlines.Add(new Run(NewLine));
         }
         inlines.Add(new Run(new string(' ', indent * 2)));
         inlines.Add(new Run("}") { Foreground = PunctuationBrush });
@@ -815,8 +656,8 @@ public partial class MainWindow : Window
             return;
         }
 
-        var perLine = rootArrayPerLine && isRootArray;
-        inlines.Add(new Run("\n"));
+        var perLine = rootArrayPerLine;
+        inlines.Add(new Run(NewLine));
         for (var i = 0; i < array.Count; i++)
         {
             inlines.Add(new Run(new string(' ', (indent + 1) * 2)));
@@ -834,7 +675,7 @@ public partial class MainWindow : Window
 
             if (i < array.Count - 1)
                 inlines.Add(new Run(",") { Foreground = PunctuationBrush });
-            inlines.Add(new Run("\n"));
+            inlines.Add(new Run(NewLine));
         }
         inlines.Add(new Run(new string(' ', indent * 2)));
         inlines.Add(new Run("]") { Foreground = PunctuationBrush });

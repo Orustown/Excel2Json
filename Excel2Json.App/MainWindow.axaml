@@ -124,12 +124,8 @@
 
             <Border Background="#2F3035" CornerRadius="10" Padding="12">
               <StackPanel Spacing="10">
-                <TextBlock Text="导出与日志" Foreground="#E9EDF4" FontWeight="SemiBold" FontSize="16"/>
-                <StackPanel Orientation="Horizontal" Spacing="10">
-                  <Button x:Name="ConvertButton" Content="导出 JSON" Width="150" Height="38" Background="#2D78FF" Foreground="White" BorderBrush="#2D78FF" ToolTip.Tip="按照当前设置生成并保存 JSON 文件"/>
-                  <TextBlock x:Name="StatusText" VerticalAlignment="Center" Foreground="#8AB4FF" Text="等待操作..." />
-                </StackPanel>
-                <Border Background="#1F2024" BorderBrush="#3A3B40" BorderThickness="1" CornerRadius="8" Padding="10" Height="200">
+                <TextBlock Text="操作日志" Foreground="#E9EDF4" FontWeight="SemiBold" FontSize="16"/>
+                <Border Background="#1F2024" BorderBrush="#3A3B40" BorderThickness="1" CornerRadius="8" Padding="10" Height="220">
                   <TextBox x:Name="LogBox" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" Background="Transparent" BorderThickness="0" Foreground="#E9EDF4" Watermark="操作日志将显示在此处"/>
                 </Border>
               </StackPanel>
@@ -149,19 +145,29 @@
         <Grid Grid.Column="2" RowDefinitions="Auto,*" ColumnDefinitions="*" Margin="10,0,0,0" MinWidth="380">
           <Border Grid.Row="0" Background="#2F3035" CornerRadius="10" Padding="12">
             <StackPanel Spacing="6">
-              <StackPanel Orientation="Horizontal" Spacing="8">
+              <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                 <TextBlock Text="JSON 预览" Foreground="#E9EDF4" FontSize="18" FontWeight="SemiBold"/>
                 <TextBlock x:Name="PreviewStatusText" Foreground="#8AB4FF" VerticalAlignment="Center" Text="等待选择文件..." />
-                <Button x:Name="CopyPreviewButton"
-                        Content="复制预览"
-                        MinWidth="90"
-                        Padding="12,6"
-                        Background="#2F3035"
-                        Foreground="#E9EDF4"
-                        BorderBrush="#3A3B40"
-                        ToolTip.Tip="将当前预览内容复制到剪贴板"/>
+                <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
+                  <Button x:Name="ConvertButton"
+                          Content="导出 JSON"
+                          MinWidth="120"
+                          Padding="12,6"
+                          Background="#2D78FF"
+                          Foreground="White"
+                          BorderBrush="#2D78FF"
+                          ToolTip.Tip="按照当前设置生成并保存 JSON 文件"/>
+                  <Button x:Name="CopyPreviewButton"
+                          Content="复制预览"
+                          MinWidth="90"
+                          Padding="12,6"
+                          Background="#2F3035"
+                          Foreground="#E9EDF4"
+                          BorderBrush="#3A3B40"
+                          ToolTip.Tip="将当前预览内容复制到剪贴板"/>
+                </StackPanel>
               </StackPanel>
-              <TextBlock Foreground="#9DA5B4" Text="右侧预览与导出结果保持一致，含缩进与空白；颜色区分键与不同类型的值。"/>
+              <TextBlock Foreground="#9DA5B4" Text="右侧预览、复制与导出使用同一份数据（含数组按行输出、日期格式、编码）。"/>
             </StackPanel>
           </Border>
 
