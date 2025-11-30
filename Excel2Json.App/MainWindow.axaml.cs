@@ -13,6 +13,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Excel2Json.Core;
 using Newtonsoft.Json;
@@ -128,52 +129,65 @@ public partial class MainWindow : Window
 
     private async void OnBrowseExcel(object? sender, RoutedEventArgs e)
     {
-        var dialog = new OpenFileDialog
+        if (!StorageProvider.CanOpen)
+        {
+            await new MessageBox("不支持", "当前环境不支持文件选择。").ShowDialog(this);
+            return;
+        }
+
+        var result = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             AllowMultiple = false,
-            Filters = new List<FileDialogFilter>
+            FileTypeFilter = new List<FilePickerFileType>
             {
-                new() { Name = "Excel/CSV", Extensions = { "xlsx", "xls", "csv" } },
-                new() { Name = "All", Extensions = { "*" } }
+                new("Excel/CSV") { Patterns = new[] { "*.xlsx", "*.xls", "*.csv" } },
+                new("All files") { Patterns = new[] { "*.*" } }
             }
-        };
-        var result = await dialog.ShowAsync(this);
-        if (result?.Length > 0)
-        {
-            _excelPathBox.Text = result[0];
-            if (string.IsNullOrWhiteSpace(_jsonPathBox.Text))
-            {
-                var candidate = Path.ChangeExtension(result[0], ".json");
-                _jsonPathBox.Text = candidate;
-            }
+        });
 
-            await UpdateSheetComboAsync();
-            SchedulePreviewRefresh();
+        var file = result.FirstOrDefault();
+        var localPath = file?.TryGetLocalPath();
+        if (string.IsNullOrWhiteSpace(localPath))
+            return;
+
+        _excelPathBox.Text = localPath;
+        if (string.IsNullOrWhiteSpace(_jsonPathBox.Text))
+        {
+            var candidate = Path.ChangeExtension(localPath, ".json");
+            _jsonPathBox.Text = candidate;
         }
+
+        await UpdateSheetComboAsync();
+        SchedulePreviewRefresh();
     }
 
     private async void OnBrowseJson(object? sender, RoutedEventArgs e)
     {
-        var dialog = new SaveFileDialog
+        if (!StorageProvider.CanSave)
+        {
+            await new MessageBox("不支持", "当前环境不支持文件保存。").ShowDialog(this);
+            return;
+        }
+
+        var result = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             DefaultExtension = "json",
-            Filters = new List<FileDialogFilter>
+            SuggestedFileName = !string.IsNullOrWhiteSpace(_jsonPathBox.Text)
+                ? Path.GetFileName(_jsonPathBox.Text)
+                : "output.json",
+            FileTypeChoices = new List<FilePickerFileType>
             {
-                new() { Name = "JSON", Extensions = { "json" } },
-                new() { Name = "All", Extensions = { "*" } }
+                new("JSON") { Patterns = new[] { "*.json" } },
+                new("All files") { Patterns = new[] { "*.*" } }
             }
-        };
+        });
 
-        dialog.InitialFileName = !string.IsNullOrWhiteSpace(_jsonPathBox.Text)
-            ? Path.GetFileName(_jsonPathBox.Text)
-            : "output.json";
+        var localPath = result?.TryGetLocalPath();
+        if (string.IsNullOrWhiteSpace(localPath))
+            return;
 
-        var result = await dialog.ShowAsync(this);
-        if (!string.IsNullOrWhiteSpace(result))
-        {
-            _jsonPathBox.Text = result;
-            SchedulePreviewRefresh();
-        }
+        _jsonPathBox.Text = localPath;
+        SchedulePreviewRefresh();
     }
 
     private void OnClearSelection(object? sender, RoutedEventArgs e)
