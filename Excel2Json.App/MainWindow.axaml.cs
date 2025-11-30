@@ -17,8 +17,6 @@ using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Excel2Json.Core;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using System.Diagnostics;
 
 namespace Excel2Json.App;
@@ -396,19 +394,7 @@ public partial class MainWindow : Window
 
     private void RenderPreviewText(string text)
     {
-        if (_previewBlock is null) return;
-        var block = _previewBlock;
-        block.Inlines!.Clear();
-        block.Text = text;
-        block.TextAlignment = TextAlignment.Left;
-        block.TextWrapping = TextWrapping.NoWrap;
-        block.HorizontalAlignment = HorizontalAlignment.Stretch;
-        block.VerticalAlignment = VerticalAlignment.Stretch;
-        block.Foreground = PreviewTextBrush;
-        block.Opacity = 1.0;
-        _lastPreviewText = text;
-        if (_previewWatermark is not null)
-            _previewWatermark.IsVisible = false;
+        RenderHighlightedJson(text);
     }
 
     private async void OnCopyPreview(object? sender, RoutedEventArgs e)
@@ -554,9 +540,9 @@ public partial class MainWindow : Window
         }
     }
 
-    private void RenderHighlightedJson(string json, bool rootArrayPerLine)
+    private void RenderHighlightedJson(string json)
     {
-        // 渲染彩色 JSON 预览；文本源即导出/复制的字符串。
+        // 渲染彩色 JSON 预览；保持文本完全一致，仅添加色彩。
         if (_previewBlock is null) return;
         var block = _previewBlock;
         block.Inlines!.Clear();
@@ -569,13 +555,11 @@ public partial class MainWindow : Window
         block.Opacity = 1.0;
         if (_previewWatermark is not null)
             _previewWatermark.IsVisible = false;
+
         try
         {
-            var token = JToken.Parse(json);
-            var isRootArray = token is JArray;
-            var effectiveRootArrayPerLine = rootArrayPerLine;
-            // 预览、复制、导出共用同一份 JSON；这里按勾选状态渲染换行效果。
-            AppendToken(token, block.Inlines!, 0, effectiveRootArrayPerLine, isRootArray, inlineObjects: false);
+            foreach (var segment in EnumerateJsonSegments(json))
+                block.Inlines!.Add(new Run(segment.Text) { Foreground = segment.Brush });
             _lastPreviewText = json;
         }
         catch
@@ -592,118 +576,138 @@ public partial class MainWindow : Window
     private static readonly IBrush NullBrush = new SolidColorBrush(Color.FromRgb(150, 155, 165));
     private static readonly IBrush PunctuationBrush = new SolidColorBrush(Color.FromRgb(120, 130, 150));
     private static readonly IBrush PreviewTextBrush = new SolidColorBrush(Color.FromRgb(233, 237, 244));
-    private static readonly IBrush WatermarkBrush = new SolidColorBrush(Color.FromRgb(140, 145, 155)) { Opacity = 0.65 };
-    private static readonly string NewLine = Environment.NewLine;
 
-    private void AppendToken(JToken token, InlineCollection inlines, int indent, bool rootArrayPerLine, bool isRootArray, bool inlineObjects)
+    private IEnumerable<JsonSegment> EnumerateJsonSegments(string json)
     {
-        // 递归分支不同类型，选择对应颜色。
-        if (inlines is null) return;
-
-        switch (token.Type)
+        var index = 0;
+        while (index < json.Length)
         {
-            case JTokenType.Object:
-                AppendObject((JObject)token, inlines, indent, rootArrayPerLine, isRootArray, inlineObjects);
-                break;
-            case JTokenType.Array:
-                AppendArray((JArray)token, inlines, indent, rootArrayPerLine, isRootArray);
-                break;
-            case JTokenType.String:
-                inlines.Add(new Run($"\"{token.Value<string>()}\"") { Foreground = StringBrush });
-                break;
-            case JTokenType.Integer:
-            case JTokenType.Float:
-                inlines.Add(new Run(token.ToString()) { Foreground = NumberBrush });
-                break;
-            case JTokenType.Boolean:
-                inlines.Add(new Run(token.ToString().ToLowerInvariant()) { Foreground = BooleanBrush });
-                break;
-            case JTokenType.Null:
-            case JTokenType.Undefined:
-                inlines.Add(new Run("null") { Foreground = NullBrush });
-                break;
-            default:
-                inlines.Add(new Run(token.ToString()) { Foreground = StringBrush });
-                break;
+            var ch = json[index];
+
+            if (char.IsWhiteSpace(ch))
+            {
+                var start = index;
+                while (index < json.Length && char.IsWhiteSpace(json[index]))
+                    index++;
+                yield return new JsonSegment(json.Substring(start, index - start), PreviewTextBrush);
+                continue;
+            }
+
+            if (ch == '"')
+            {
+                var start = index;
+                index++;
+                var escaped = false;
+                while (index < json.Length)
+                {
+                    var current = json[index];
+                    if (escaped)
+                    {
+                        escaped = false;
+                    }
+                    else if (current == '\\')
+                    {
+                        escaped = true;
+                    }
+                    else if (current == '"')
+                    {
+                        index++;
+                        break;
+                    }
+
+                    index++;
+                }
+
+                var segment = json.Substring(start, index - start);
+                var brush = IsPropertyName(json, index) ? KeyBrush : StringBrush;
+                yield return new JsonSegment(segment, brush);
+                continue;
+            }
+
+            if (IsPunctuation(ch))
+            {
+                yield return new JsonSegment(json.Substring(index, 1), PunctuationBrush);
+                index++;
+                continue;
+            }
+
+            if (TryReadLiteral(json, index, "true", out var literalLength))
+            {
+                yield return new JsonSegment(json.Substring(index, literalLength), BooleanBrush);
+                index += literalLength;
+                continue;
+            }
+
+            if (TryReadLiteral(json, index, "false", out literalLength))
+            {
+                yield return new JsonSegment(json.Substring(index, literalLength), BooleanBrush);
+                index += literalLength;
+                continue;
+            }
+
+            if (TryReadLiteral(json, index, "null", out literalLength))
+            {
+                yield return new JsonSegment(json.Substring(index, literalLength), NullBrush);
+                index += literalLength;
+                continue;
+            }
+
+            if (char.IsDigit(ch) || ch == '-' || ch == '+')
+            {
+                var start = index;
+                index++;
+                while (index < json.Length && IsNumberChar(json[index]))
+                    index++;
+                yield return new JsonSegment(json.Substring(start, index - start), NumberBrush);
+                continue;
+            }
+
+            yield return new JsonSegment(json.Substring(index, 1), PreviewTextBrush);
+            index++;
         }
     }
 
-    private void AppendObject(JObject obj, InlineCollection inlines, int indent, bool rootArrayPerLine, bool isRootArray, bool inlineObjects)
+    private static bool IsPropertyName(string json, int index)
     {
-        // 对象：按缩进输出键值对。
-        if (obj.Count == 0)
-        {
-            inlines.Add(new Run("{") { Foreground = PunctuationBrush });
-            inlines.Add(new Run("}") { Foreground = PunctuationBrush });
-            return;
-        }
-
-        var properties = obj.Properties().ToList();
-        inlines.Add(new Run("{") { Foreground = PunctuationBrush });
-        if (inlineObjects)
-        {
-            for (var i = 0; i < properties.Count; i++)
-            {
-                var prop = properties[i];
-                inlines.Add(new Run($"\"{prop.Name}\"") { Foreground = KeyBrush });
-                inlines.Add(new Run(": ") { Foreground = PunctuationBrush });
-                AppendToken(prop.Value, inlines, indent + 1, rootArrayPerLine, isRootArray: false, inlineObjects: true);
-                if (i < properties.Count - 1)
-                    inlines.Add(new Run(", ") { Foreground = PunctuationBrush });
-            }
-            inlines.Add(new Run("}") { Foreground = PunctuationBrush });
-            return;
-        }
-
-        inlines.Add(new Run(NewLine));
-        for (var i = 0; i < properties.Count; i++)
-        {
-            var prop = properties[i];
-            inlines.Add(new Run(new string(' ', (indent + 1) * 2)));
-            inlines.Add(new Run($"\"{prop.Name}\"") { Foreground = KeyBrush });
-            inlines.Add(new Run(": ") { Foreground = PunctuationBrush });
-            AppendToken(prop.Value, inlines, indent + 1, rootArrayPerLine, isRootArray: false, inlineObjects: false);
-            if (i < properties.Count - 1)
-                inlines.Add(new Run(",") { Foreground = PunctuationBrush });
-            inlines.Add(new Run(NewLine));
-        }
-        inlines.Add(new Run(new string(' ', indent * 2)));
-        inlines.Add(new Run("}") { Foreground = PunctuationBrush });
+        var lookahead = index;
+        while (lookahead < json.Length && char.IsWhiteSpace(json[lookahead]))
+            lookahead++;
+        return lookahead < json.Length && json[lookahead] == ':';
     }
 
-    private void AppendArray(JArray array, InlineCollection inlines, int indent, bool rootArrayPerLine, bool isRootArray)
+    private static bool IsPunctuation(char ch) => ch is '{' or '}' or '[' or ']' or ':' or ',';
+
+    private static bool IsNumberChar(char ch) => ch == '-' || ch == '+' || ch == '.' || ch == 'e' || ch == 'E' || char.IsDigit(ch);
+
+    private static bool TryReadLiteral(string json, int index, string literal, out int length)
     {
-        // 数组：支持“每元素一行”模式。
-        inlines.Add(new Run("[") { Foreground = PunctuationBrush });
-        if (array.Count == 0)
+        length = 0;
+        if (index > 0 && char.IsLetterOrDigit(json[index - 1]))
+            return false;
+
+        if (index + literal.Length > json.Length)
+            return false;
+
+        if (!json.AsSpan(index, literal.Length).SequenceEqual(literal))
+            return false;
+
+        var nextIndex = index + literal.Length;
+        if (nextIndex < json.Length && char.IsLetterOrDigit(json[nextIndex]))
+            return false;
+
+        length = literal.Length;
+        return true;
+    }
+
+    private readonly struct JsonSegment
+    {
+        public JsonSegment(string text, IBrush brush)
         {
-            inlines.Add(new Run("]") { Foreground = PunctuationBrush });
-            return;
+            Text = text;
+            Brush = brush;
         }
 
-        var perLine = rootArrayPerLine;
-        inlines.Add(new Run(NewLine));
-        for (var i = 0; i < array.Count; i++)
-        {
-            inlines.Add(new Run(new string(' ', (indent + 1) * 2)));
-            if (perLine)
-            {
-                // 单行数组时，每个元素紧凑渲染到一行再插入换行。
-                var temp = new TextBlock();
-                AppendToken(array[i], temp.Inlines!, indent + 1, rootArrayPerLine: false, isRootArray: false, inlineObjects: true);
-                foreach (var piece in temp.Inlines!)
-                    inlines.Add(piece);
-            }
-            else
-            {
-                AppendToken(array[i], inlines, indent + 1, rootArrayPerLine: false, isRootArray: false, inlineObjects: false);
-            }
-
-            if (i < array.Count - 1)
-                inlines.Add(new Run(",") { Foreground = PunctuationBrush });
-            inlines.Add(new Run(NewLine));
-        }
-        inlines.Add(new Run(new string(' ', indent * 2)));
-        inlines.Add(new Run("]") { Foreground = PunctuationBrush });
+        public string Text { get; }
+        public IBrush Brush { get; }
     }
 }
