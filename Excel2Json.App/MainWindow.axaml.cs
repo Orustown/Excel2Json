@@ -234,8 +234,13 @@ public partial class MainWindow : Window
             var outputJson = preview.Json;
 
             var encoding = Encoding.GetEncoding(options.EncodingName);
-            Directory.CreateDirectory(Path.GetDirectoryName(options.OutputPath) ?? ".");
-            await File.WriteAllTextAsync(options.OutputPath, outputJson, encoding, CancellationToken.None);
+            var directory = Path.GetDirectoryName(options.OutputPath);
+            if (!string.IsNullOrWhiteSpace(directory))
+                Directory.CreateDirectory(directory);
+
+            var tempPath = Path.Combine(string.IsNullOrWhiteSpace(directory) ? Environment.CurrentDirectory : directory, Path.GetRandomFileName());
+            await File.WriteAllTextAsync(tempPath, outputJson, encoding, CancellationToken.None);
+            File.Move(tempPath, options.OutputPath, overwrite: true);
 
             RenderPreviewText(outputJson);
             _previewStatusText.Text = $"已导出：{options.OutputPath}";
@@ -364,10 +369,11 @@ public partial class MainWindow : Window
         }
         catch (OperationCanceledException)
         {
-            // ignore
+            Log("预览任务已取消");
         }
         catch (Exception ex)
         {
+            Log($"预览失败：{ex.Message}");
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 SetPreviewPlain($"// 预览失败：{ex.Message}");
@@ -421,6 +427,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
+            Log($"复制预览失败：{ex.Message}");
             _previewStatusText.Text = $"复制失败：{ex.Message}";
         }
     }
@@ -448,6 +455,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
+            Log($"打开文件失败：{ex.Message}");
             _previewStatusText.Text = $"打开失败：{ex.Message}";
         }
     }
@@ -562,8 +570,9 @@ public partial class MainWindow : Window
                 block.Inlines!.Add(new Run(segment.Text) { Foreground = segment.Brush });
             _lastPreviewText = json;
         }
-        catch
+        catch (Exception ex)
         {
+            Log($"JSON 高亮失败：{ex.Message}");
             block.Text = json;
             _lastPreviewText = json;
         }

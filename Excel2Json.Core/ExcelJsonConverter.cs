@@ -26,8 +26,13 @@ public sealed class ExcelJsonConverter
         var preview = BuildPreview(options, cancellationToken);
         var encoding = Encoding.GetEncoding(options.EncodingName);
 
-        Directory.CreateDirectory(Path.GetDirectoryName(options.OutputPath) ?? ".");
-        await File.WriteAllTextAsync(options.OutputPath, preview.Json, encoding, cancellationToken).ConfigureAwait(false);
+        var directory = Path.GetDirectoryName(options.OutputPath);
+        if (!string.IsNullOrWhiteSpace(directory))
+            Directory.CreateDirectory(directory);
+
+        var tempPath = Path.Combine(string.IsNullOrWhiteSpace(directory) ? Environment.CurrentDirectory : directory, Path.GetRandomFileName());
+        await File.WriteAllTextAsync(tempPath, preview.Json, encoding, cancellationToken).ConfigureAwait(false);
+        File.Move(tempPath, options.OutputPath, overwrite: true);
 
         return new ConversionResult(options.OutputPath, preview.Sheets, preview.Rows);
     }
